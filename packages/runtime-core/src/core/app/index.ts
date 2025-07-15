@@ -1,4 +1,4 @@
-import { _IS_DEV_, DomilyAppDefault, PROVIDER_KEY } from "../../config";
+import { DomilyAppDefault, PROVIDER_KEY } from "../../config";
 import { $el, camelToKebab, parseAttribute, replaceDOM } from "../../utils/dom";
 import { DOMilyChild, DOMilyMountableRender } from "../render";
 import { domilyChildToDOMilyMountableRender } from "../render/shared/parse";
@@ -116,8 +116,7 @@ export default class DomilyApp<
   ) {
     name = camelToKebab(name);
     if (customElements.get(name)) {
-      _IS_DEV_ &&
-        console.warn(`[Domily warn] Custom element ${name} already exists.`);
+      console.warn(`[Domily warn] Custom element ${name} already exists.`);
       return;
     }
     const namespace = this.namespace;
@@ -155,10 +154,7 @@ export default class DomilyApp<
             component
           );
           if (!this.mountable) {
-            _IS_DEV_ &&
-              console.warn(
-                `[Domily warn] Custom element ${name} render failed.`
-              );
+            console.warn(`[Domily warn] Custom element ${name} render failed.`);
             return;
           }
           const container =
@@ -250,22 +246,18 @@ export function provide<T, K = InjectionKey<T> | string | number>(
 ) {
   const appInstance = getCurrentInstance(namespace);
   if (!appInstance) {
-    _IS_DEV_ &&
-      console.warn(
-        `[Domily warn] No app instance found for namespace ${String(
-          namespace
-        )}.`
-      );
+    console.warn(
+      `[Domily warn] No app instance found for namespace ${String(namespace)}.`
+    );
     return;
   }
   const providers =
     appInstance.globalProperties[PROVIDER_KEY] ||
     new Map<string | symbol, any>();
   if (providers.has(key)) {
-    _IS_DEV_ &&
-      console.warn(
-        `[Domily warn] Provider with key ${String(key)} already exists.`
-      );
+    console.warn(
+      `[Domily warn] Provider with key ${String(key)} already exists.`
+    );
     return;
   }
   providers.set(key, data);
@@ -280,26 +272,21 @@ export function inject<T>(
   const appInstance = getCurrentInstance(namespace);
   const dv = handleWithFunType(defaultValue);
   if (!appInstance) {
-    _IS_DEV_ &&
-      console.warn(
-        `[Domily warn] No app instance found for namespace ${String(
-          namespace
-        )}.`
-      );
+    console.warn(
+      `[Domily warn] No app instance found for namespace ${String(namespace)}.`
+    );
     return dv;
   }
   const providers = appInstance.globalProperties[PROVIDER_KEY];
   if (!providers) {
-    _IS_DEV_ &&
-      console.warn(
-        `[Domily warn] No providers found for namespace ${String(namespace)}.`
-      );
+    console.warn(
+      `[Domily warn] No providers found for namespace ${String(namespace)}.`
+    );
     return dv;
   }
   const data = providers.get(key);
   if (!data) {
-    _IS_DEV_ &&
-      console.warn(`[Domily warn] Provider with key ${String(key)} not found.`);
+    console.warn(`[Domily warn] Provider with key ${String(key)} not found.`);
     return dv;
   }
 
