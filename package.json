@@ -18,8 +18,8 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "lerna": "^8.2.3",
-    "oxlint": "^0.16.11",
+    "lerna": "^9.0.0",
+    "oxlint": "^1.23.0",
     "typescript": "^5"
   }
 }
