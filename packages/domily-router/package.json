@@ -23,7 +23,7 @@
     "lib"
   ],
   "dependencies": {
-    "path-to-regexp": "^8.2.0",
+    "path-to-regexp": "^8.3.0",
     "@domily/runtime-core": "workspace:^"
   },
   "devDependencies": {

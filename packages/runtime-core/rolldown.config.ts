@@ -1,5 +1,4 @@
 import { defineConfig, type RolldownOptions } from "rolldown";
-import terser from "@rollup/plugin-terser";
 
 export default defineConfig([
   {
@@ -10,19 +9,19 @@ export default defineConfig([
         format: "umd",
         name: "DOMily",
         entryFileNames: "[name].umd.js",
-        plugins: [terser()],
+        minify: true,
       },
       {
         dir: "lib",
         format: "esm",
         entryFileNames: "[name].esm.js",
-        plugins: [terser()],
+        minify: true,
       },
       {
         dir: "lib",
         format: "cjs",
         entryFileNames: "[name].cjs.js",
-        plugins: [terser()],
+        minify: true,
       },
     ],
   } as RolldownOptions,
