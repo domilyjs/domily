@@ -13,7 +13,7 @@
     "lib"
   ],
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./lib --target browser --format esm && tsc -p ./tsconfig.types.json",
+    "build": "rm -rf ./lib && bun build ./src/index.ts --outdir ./lib --target browser --format esm && tsc -b ./tsconfig.types.json --force",
     "typecheck": "tsc -p ./tsconfig.json",
     "lint": "oxlint --config=../../.oxlintrc.json src test",
     "test": "bun test ./test"
