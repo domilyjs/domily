@@ -1,7 +1,20 @@
 packages:
   - packages/*
-onlyBuiltDependencies:
-  - '@parcel/watcher'
-  - '@swc/core'
-  - esbuild
-  - nx
+registries:
+  default: https://registry.npmjs.org/
+minimumReleaseAge: 10080
+minimumReleaseAgeIgnoreMissingTime: false
+minimumReleaseAgeStrict: true
+trustPolicy: no-downgrade
+blockExoticSubdeps: true
+strictDepBuilds: true
+sideEffectsCache: false
+verifyDepsBeforeRun: error
+allowBuilds:
+  '@parcel/watcher': false
+  '@swc/core': false
+  esbuild: false
+audit:
+  level: high
+overrides:
+  monaco-editor>dompurify: 3.4.13

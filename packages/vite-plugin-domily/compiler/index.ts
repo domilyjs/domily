@@ -6,7 +6,7 @@ import {
   transform,
 } from "@swc/core";
 import type { VitePluginDomilyOptions } from "./utils";
-import { codeDataBinding } from "./data-bing";
+import { codeDataBinding } from "./data-binding";
 
 type Mode = "dev" | "build" | "unknown" | "scan";
 
@@ -68,7 +68,7 @@ function parse(code: string) {
 
   while ((match = codeBlockRegex.exec(code)) !== null) {
     // eslint-disable-next-line no-unused-vars
-    const [_, lang, content] = match;
+    const [, lang = "", content = ""] = match;
     const langLowerCase = lang.toLowerCase();
     switch (langLowerCase) {
       case "json":
@@ -164,9 +164,7 @@ async function generateCodeText({
   ts: boolean;
   mode: Mode;
 }) {
-  const {
-    customElement: { enable, prefix },
-  } = options;
+  const { enable = false, prefix = "d-" } = options.customElement ?? {};
 
   const returnTemplate = enable
     ? `{ name: "${prefix}${name}", customElementComponent: ${template}}`

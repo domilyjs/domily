@@ -49,7 +49,11 @@ const light = () => {
 };
 
 const checkTheme = (e: MediaQueryListEvent | { matches: boolean }) => {
-  e.matches ? light() : dark();
+  if (e.matches) {
+    light();
+  } else {
+    dark();
+  }
   if (GLThemeRef.onThemeChanges.length) {
     GLThemeRef.onThemeChanges.forEach((handleChange) =>
       handleChange("auto", e.matches ? "light" : "dark")
@@ -74,7 +78,9 @@ function handleLight(
 ) {
   removeAutoChangeThemeEvent();
   light();
-  typeof onThemeChange === "function" && onThemeChange("light", "light");
+  if (typeof onThemeChange === "function") {
+    onThemeChange("light", "light");
+  }
 }
 
 function handleDark(
@@ -85,7 +91,9 @@ function handleDark(
 ) {
   removeAutoChangeThemeEvent();
   dark();
-  typeof onThemeChange === "function" && onThemeChange("dark", "dark");
+  if (typeof onThemeChange === "function") {
+    onThemeChange("dark", "dark");
+  }
 }
 
 function handleAuto(

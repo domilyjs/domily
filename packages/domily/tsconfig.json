@@ -15,10 +15,12 @@
       "ES2023",
       "ESNext"
     ],
-    "module": "ESNext",
+    "module": "preserve",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "declaration": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
     "declarationDir": "./lib/types",
     "emitDeclarationOnly": true,
     "rootDir": "./src",

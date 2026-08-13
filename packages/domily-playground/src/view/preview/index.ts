@@ -1,5 +1,4 @@
-import { ref, computed, effect } from "domily";
-import type { ISignalFunc } from "domily";
+import { computed, effect, ref, type ISignalFunc } from "domily";
 import IconLoading from "@/assets/imgs/code-loading.svg";
 
 export default function Preview(props: { code: ISignalFunc<string> }) {

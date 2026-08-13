@@ -5,12 +5,26 @@
       "ESNext"
     ],
     "target": "ESNext",
-    "module": "ESNext",
+    "module": "preserve",
     "moduleDetection": "force",
     "jsx": "react-jsx",
     "allowJs": true,
     // Bundler mode
     "moduleResolution": "bundler",
+    "paths": {
+      "@domily/next-ast": [
+        "./packages/domily-next-ast/src/index.ts"
+      ],
+      "@domily/next-codec-json": [
+        "./packages/domily-next-codec-json/src/index.ts"
+      ],
+      "@domily/next-validator": [
+        "./packages/domily-next-validator/src/index.ts"
+      ],
+      "@domily/next-loader": [
+        "./packages/domily-next-loader/src/index.ts"
+      ]
+    },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
@@ -26,5 +40,8 @@
     "types": [
       "bun"
     ]
-  }
+  },
+  "files": [
+    "./types/tsconfig.d.ts"
+  ]
 }

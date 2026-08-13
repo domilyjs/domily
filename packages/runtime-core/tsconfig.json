@@ -3,10 +3,11 @@
     "composite": true,
     "skipLibCheck": true,
     "target": "ESNext",
-    "module": "ESNext",
+    "module": "preserve",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "strict": true,
+    "noUncheckedIndexedAccess": true,
     "lib": [
       "DOM",
       "DOM.Iterable",

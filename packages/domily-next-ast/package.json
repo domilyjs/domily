@@ -1,0 +1,22 @@
+{
+  "name": "@domily/next-ast",
+  "version": "0.0.0",
+  "description": "Experimental AST for Domily Next documents",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./lib --target browser --format esm && tsc -p ./tsconfig.types.json",
+    "typecheck": "tsc -p ./tsconfig.json",
+    "lint": "oxlint --config=../../.oxlintrc.json src test",
+    "test": "bun test ./test"
+  },
+  "license": "MIT"
+}

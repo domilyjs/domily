@@ -1,24 +1,5 @@
 {
   "rules": {
-    "semi": [
-      "error",
-      "always"
-    ],
-    "quotes": [
-      "error",
-      "single",
-      {
-        "avoidEscape": true
-      }
-    ],
-    "indent": [
-      "error",
-      2,
-      {
-        "SwitchCase": 1
-      }
-    ],
-    "no-trailing-spaces": "error",
     "no-debugger": "error",
     "no-unused-vars": [
       "error",
@@ -34,28 +15,10 @@
     "typescript/no-explicit-any": "off",
     "typescript/no-non-null-assertion": "off",
     "typescript/prefer-optional-chain": "error",
-    "import/order": [
-      "error",
-      {
-        "groups": [
-          "builtin",
-          "external",
-          "internal",
-          "parent",
-          "sibling",
-          "index"
-        ],
-        "newlines-between": "always"
-      }
-    ],
-    "max-len": [
-      "error",
-      {
-        "code": 120,
-        "ignoreUrls": true,
-        "ignoreTemplateLiterals": true
-      }
-    ],
+    "no-duplicate-imports": "error",
+    "no-unused-expressions": "error",
+    "unicorn/no-thenable": "off",
+    "oxc/only-used-in-recursion": "off"
   },
   "env": {
     "es2024": true,

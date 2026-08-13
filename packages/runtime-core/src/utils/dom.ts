@@ -215,11 +215,12 @@ export function KebabToCamel(str: string): string {
   return str
     .split("-")
     .filter((word) => word)
-    .map((word, index) =>
-      index === 0
+    .map((word, index) => {
+      const firstCharacter = word.charAt(0);
+      return index === 0
         ? word.toLowerCase()
-        : word[0].toUpperCase() + word.slice(1).toLowerCase()
-    )
+        : firstCharacter.toUpperCase() + word.slice(1).toLowerCase();
+    })
     .join("");
 }
 
@@ -314,6 +315,9 @@ export function teleportChildren(
   const fragment = document.createDocumentFragment();
   for (let index = 0; index < children.length; index++) {
     const dom = children[index];
+    if (dom === undefined) {
+      continue;
+    }
     if (!teleportDOM(dom)) {
       fragment.append(dom);
     }
@@ -346,7 +350,9 @@ export function internalCreateElement<P>(
             } else {
               container.setAttribute(ak, next);
             }
-            typeof onUpdated === "function" && onUpdated();
+            if (typeof onUpdated === "function") {
+              onUpdated();
+            }
           });
           if (Array.isArray(gatherEffectAborts)) {
             gatherEffectAborts.push(stopEffect);
@@ -400,7 +406,9 @@ export function internalCreateElement<P>(
         Reflect.set(container, k, handleWithFunType(v));
         const stopEffect = stoppableEffect(() => {
           Reflect.set(container, k, handleWithFunType(v));
-          typeof onUpdated === "function" && onUpdated();
+          if (typeof onUpdated === "function") {
+            onUpdated();
+          }
         });
         if (Array.isArray(gatherEffectAborts)) {
           gatherEffectAborts.push(stopEffect);

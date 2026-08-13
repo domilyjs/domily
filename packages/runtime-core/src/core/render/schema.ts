@@ -543,7 +543,9 @@ export default class DomilyRenderSchema<
 
   abortEffect() {
     for (const abort of this._internalEffectAborts) {
-      isFunction(abort) && abort();
+      if (isFunction(abort)) {
+        abort();
+      }
     }
     this._internalEffectAborts = [];
   }

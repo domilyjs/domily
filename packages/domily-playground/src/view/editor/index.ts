@@ -27,32 +27,36 @@ export default function Editor(props: { code: ISignalFunc<string> }) {
     return "default";
   });
 
-  let editor: monaco.editor.IStandaloneCodeEditor;
+  let editor: monaco.editor.IStandaloneCodeEditor | undefined;
+  let contentChangeTimer: ReturnType<typeof setTimeout> | undefined;
 
-  let contentChangeTimer;
+  const mounted = (dom: HTMLElement | Node | null) => {
+    if (!(dom instanceof HTMLElement)) {
+      return;
+    }
 
-  const mounted = (dom: HTMLElement | null) => {
-    const editorDOM = dom?.querySelector<HTMLElement>(".editor");
+    const editorDOM = dom.querySelector<HTMLElement>(".editor");
     if (!editorDOM) {
       return;
     }
-    editor = monaco.editor.create(editorDOM, {
+    const standaloneEditor = monaco.editor.create(editorDOM, {
       value: props.code(),
       language: "html",
       theme: editorInitialTheme.value,
       automaticLayout: true,
     });
+    editor = standaloneEditor;
 
-    editor.getModel().onDidChangeContent(() => {
+    standaloneEditor.getModel()?.onDidChangeContent(() => {
       clearTimeout(contentChangeTimer);
       contentChangeTimer = setTimeout(() => {
-        props.code(editor.getValue());
+        props.code(standaloneEditor.getValue());
       }, 1000);
     });
 
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
-      await editor.getAction("editor.action.formatDocument").run();
-      props.code(editor.getValue());
+    standaloneEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
+      await standaloneEditor.getAction("editor.action.formatDocument")?.run();
+      props.code(standaloneEditor.getValue());
     });
   };
 
@@ -60,7 +64,9 @@ export default function Editor(props: { code: ISignalFunc<string> }) {
     if (!editor) {
       return;
     }
+    clearTimeout(contentChangeTimer);
     editor.dispose();
+    editor = undefined;
   };
 
   return render({

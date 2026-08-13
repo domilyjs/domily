@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "protocol": "domily-next",
+    "version": "0.1",
+    "id": "todos",
+    "capabilities": ["todos.list", "todos.create"]
+  },
+  "state": {
+    "newTitle": "",
+    "todos": [],
+    "loading": false,
+    "error": null
+  },
+  "derived": {
+    "canSubmit": {
+      "op": "not",
+      "arg": {
+        "op": "empty",
+        "arg": { "$ref": "state.newTitle" }
+      }
+    }
+  },
+  "actions": {
+    "loadTodos": [
+      { "op": "set", "path": "state.loading", "value": true },
+      {
+        "op": "try",
+        "body": [
+          { "op": "call", "capability": "todos.list", "assign": "response" },
+          { "op": "set", "path": "state.todos", "value": { "$ref": "vars.response.items" } }
+        ],
+        "catch": [
+          { "op": "set", "path": "state.error", "value": { "$ref": "vars.error.message" } }
+        ],
+        "finally": [
+          { "op": "set", "path": "state.loading", "value": false }
+        ]
+      }
+    ],
+    "createTodo": [
+      {
+        "op": "call",
+        "capability": "todos.create",
+        "args": { "title": { "$ref": "state.newTitle" } }
+      },
+      { "op": "set", "path": "state.newTitle", "value": "" },
+      { "op": "run", "action": "loadTodos" }
+    ]
+  },
+  "lifecycle": {
+    "mounted": { "op": "run", "action": "loadTodos" }
+  },
+  "view": {
+    "component": "div",
+    "props": { "role": "main" },
+    "children": [
+      {
+        "component": "input",
+        "props": {
+          "type": "text",
+          "value": { "$ref": "state.newTitle" },
+          "placeholder": "待办事项"
+        },
+        "events": {
+          "input": {
+            "op": "set",
+            "path": "state.newTitle",
+            "value": { "$ref": "event.value" }
+          }
+        }
+      },
+      {
+        "component": "button",
+        "props": { "type": "button", "disabled": { "$ref": "derived.canSubmit" } },
+        "events": { "click": { "op": "run", "action": "createTodo" } },
+        "children": [{ "kind": "text", "value": "新增" }]
+      },
+      {
+        "kind": "repeat",
+        "each": "todo",
+        "in": { "$ref": "state.todos" },
+        "key": { "$ref": "todo.id" },
+        "template": {
+          "component": "p",
+          "children": [{ "kind": "text", "value": { "$ref": "todo.title" } }]
+        }
+      }
+    ]
+  }
+}

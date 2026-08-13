@@ -19,15 +19,18 @@ export default function domily(options?: VitePluginDomilyOptions) {
     name: "vite:domily",
     transform(code, id) {
       if (sfcExt.some((e) => id.endsWith(e))) {
-        let name = id.split("/").at(-1);
-        sfcExt.forEach((e) => {
-          name = name.replace(e, "");
-        });
+        const filename = id.split("/").at(-1);
+        if (!filename) return;
+
+        const name = sfcExt.reduce(
+          (value, extension) => value.replace(extension, ""),
+          filename,
+        );
         return transformDOMSingleFileComponentCode(
           name,
           code,
           this.environment.mode,
-          opt
+          opt,
         );
       }
     },

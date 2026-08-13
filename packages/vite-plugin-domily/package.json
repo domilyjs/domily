@@ -13,7 +13,7 @@
     "build": "bun run scripts/build.ts && bun run scripts/types.ts",
     "prepublishOnly": "npm version patch && bun run build",
     "release": "npm publish --access public",
-    "lint": "oxlint --config=../../.oxlintrc.json src --fix-suggestions"
+    "lint": "oxlint --config=../../.oxlintrc.json compiler index.ts --fix-suggestions"
   },
   "files": [
     "lib"
