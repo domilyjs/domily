@@ -25,8 +25,5 @@
   "dependencies": {
     "path-to-regexp": "^8.3.0",
     "@domily/runtime-core": "workspace:^"
-  },
-  "devDependencies": {
-    "typescript": "7.0.2"
   }
 }

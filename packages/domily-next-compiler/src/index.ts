@@ -1,4 +1,4 @@
-import { parseSync, type Argument, type Expression, type Module, type ObjectExpression, type PropertyName } from '@swc/core';
+import { parseSync, type Argument, type Expression, type Module, type PropertyName } from '@swc/core';
 import {
   freezeDocument,
   type ActionNode,
@@ -6,7 +6,6 @@ import {
   type CodecResult,
   type Document,
   type ExpressionOperator,
-  type JsonPrimitive,
   type ObjectNode,
   type ValueNode,
   type ViewNode,
@@ -72,7 +71,7 @@ export function compileAuthorModule(source: string): CodecResult<Document> {
       syntax: 'typescript',
       target: 'es2022',
     });
-    const compiler = new AuthorModuleCompiler(source, module);
+    const compiler = new AuthorModuleCompiler(module);
 
     return {
       ok: true,
@@ -96,10 +95,7 @@ class AuthorModuleCompiler {
   private documentIndex = -1;
   private constantLimit = -1;
 
-  constructor(
-    private readonly source: string,
-    private readonly module: Module,
-  ) {}
+  constructor(private readonly module: Module) {}
 
   compile(): Document {
     this.collectModuleBindings();
@@ -193,7 +189,7 @@ class AuthorModuleCompiler {
     if (this.importedSymbol(call.callee) !== 'defineDocument') {
       this.fail('dsl.document', 'The default export must call the imported defineDocument constructor.', call.span);
     }
-    const [definition] = this.arguments(call, 'defineDocument', 1, 1);
+    const definition = this.arguments(call, 'defineDocument', 1, 1)[0]!;
     const fields = this.objectEntries(definition, 'defineDocument(...)');
     this.rejectUnknownKeys(fields, new Set(['actions', 'capabilities', 'derived', 'id', 'lifecycle', 'state', 'view']), definition);
 
@@ -239,7 +235,7 @@ class AuthorModuleCompiler {
       if (this.importedSymbol(call.callee) !== 'state') {
         this.fail('dsl.state', 'The state field must use state({...}).', call.span);
       }
-      const [value] = this.arguments(call, 'state', 1, 1);
+      const value = this.arguments(call, 'state', 1, 1)[0]!;
       return this.objectValue(value, 'state');
     });
   }
@@ -302,7 +298,7 @@ class AuthorModuleCompiler {
         case 'Identifier':
           this.fail('dsl.value', `"${resolved.value}" is not a static Domily value.`, resolved.span);
         default:
-          this.fail('dsl.value', `${resolved.type} is not a supported static Domily value.`, resolved.span);
+          this.fail('dsl.value', `${resolved.type} is not a supported static Domily value.`, spanOf(resolved));
       }
     });
   }
@@ -377,7 +373,9 @@ class AuthorModuleCompiler {
 
       switch (member.member) {
         case 'set': {
-          const [path, value] = this.arguments(call, 'action.set', 2, 2);
+          const actionArguments = this.arguments(call, 'action.set', 2, 2);
+          const path = actionArguments[0]!;
+          const value = actionArguments[1]!;
           return {
             kind: 'set',
             path: this.statePath(path),
@@ -385,7 +383,9 @@ class AuthorModuleCompiler {
           };
         }
         case 'merge': {
-          const [path, value] = this.arguments(call, 'action.merge', 2, 2);
+          const actionArguments = this.arguments(call, 'action.merge', 2, 2);
+          const path = actionArguments[0]!;
+          const value = actionArguments[1]!;
           return {
             kind: 'merge',
             path: this.statePath(path),
@@ -393,11 +393,11 @@ class AuthorModuleCompiler {
           };
         }
         case 'toggle': {
-          const [path] = this.arguments(call, 'action.toggle', 1, 1);
+          const path = this.arguments(call, 'action.toggle', 1, 1)[0]!;
           return { kind: 'toggle', path: this.statePath(path) };
         }
         case 'run': {
-          const [action] = this.arguments(call, 'action.run', 1, 1);
+          const action = this.arguments(call, 'action.run', 1, 1)[0]!;
           return { kind: 'run', action: this.stringValue(action, 'action name') };
         }
         case 'call':
@@ -413,7 +413,9 @@ class AuthorModuleCompiler {
   }
 
   private compileCallAction(call: Extract<Expression, { type: 'CallExpression' }>): ActionNode {
-    const [capability, options] = this.arguments(call, 'action.call', 1, 2);
+    const actionArguments = this.arguments(call, 'action.call', 1, 2);
+    const capability = actionArguments[0]!;
+    const options = actionArguments[1];
     const optionsEntries = options ? this.objectEntries(options, 'action.call options') : new Map<string, Expression>();
     this.rejectUnknownKeys(optionsEntries, new Set(['args', 'assign']), call);
 
@@ -430,7 +432,10 @@ class AuthorModuleCompiler {
   }
 
   private compileIfAction(call: Extract<Expression, { type: 'CallExpression' }>): ActionNode {
-    const [condition, thenBranch, elseBranch] = this.arguments(call, 'action.if', 2, 3);
+    const actionArguments = this.arguments(call, 'action.if', 2, 3);
+    const condition = actionArguments[0]!;
+    const thenBranch = actionArguments[1]!;
+    const elseBranch = actionArguments[2];
     return {
       kind: 'if',
       condition: this.compileValue(condition),
@@ -440,7 +445,9 @@ class AuthorModuleCompiler {
   }
 
   private compileTryAction(call: Extract<Expression, { type: 'CallExpression' }>): ActionNode {
-    const [body, options] = this.arguments(call, 'action.try', 1, 2);
+    const actionArguments = this.arguments(call, 'action.try', 1, 2);
+    const body = actionArguments[0]!;
+    const options = actionArguments[1];
     const optionsEntries = options ? this.objectEntries(options, 'action.try options') : new Map<string, Expression>();
     this.rejectUnknownKeys(optionsEntries, new Set(['catch', 'finally']), call);
     return {
@@ -481,7 +488,11 @@ class AuthorModuleCompiler {
   }
 
   private compileComponentView(call: Extract<Expression, { type: 'CallExpression' }>): ViewNode {
-    const [component, props, children, events] = this.arguments(call, 'view.component', 1, 4);
+    const viewArguments = this.arguments(call, 'view.component', 1, 4);
+    const component = viewArguments[0]!;
+    const props = viewArguments[1];
+    const children = viewArguments[2];
+    const events = viewArguments[3];
     return {
       kind: 'element',
       component: this.stringValue(component, 'component name'),
@@ -492,7 +503,7 @@ class AuthorModuleCompiler {
   }
 
   private compileTextView(call: Extract<Expression, { type: 'CallExpression' }>): ViewNode {
-    const [value] = this.arguments(call, 'view.text', 1, 1);
+    const value = this.arguments(call, 'view.text', 1, 1)[0]!;
     if (this.unwrap(value).type !== 'ObjectExpression') {
       return { kind: 'text', value: this.compileValue(value) };
     }
@@ -502,12 +513,14 @@ class AuthorModuleCompiler {
   }
 
   private compileFragmentView(call: Extract<Expression, { type: 'CallExpression' }>): ViewNode {
-    const [children] = this.arguments(call, 'view.fragment', 1, 1);
+    const children = this.arguments(call, 'view.fragment', 1, 1)[0]!;
     return { kind: 'fragment', children: this.viewList(children) };
   }
 
   private compileWhenView(call: Extract<Expression, { type: 'CallExpression' }>): ViewNode {
-    const [condition, child] = this.arguments(call, 'view.when', 2, 2);
+    const viewArguments = this.arguments(call, 'view.when', 2, 2);
+    const condition = viewArguments[0]!;
+    const child = viewArguments[1]!;
     return {
       kind: 'when',
       condition: this.compileValue(condition),
@@ -516,7 +529,7 @@ class AuthorModuleCompiler {
   }
 
   private compileRepeatView(call: Extract<Expression, { type: 'CallExpression' }>): ViewNode {
-    const [options] = this.arguments(call, 'view.repeat', 1, 1);
+    const options = this.arguments(call, 'view.repeat', 1, 1)[0]!;
     const fields = this.objectEntries(options, 'view.repeat options');
     this.rejectUnknownKeys(fields, new Set(['each', 'in', 'key', 'template']), options);
     return {
@@ -557,7 +570,7 @@ class AuthorModuleCompiler {
       if (this.importedSymbol(call.callee) !== 'cap') {
         this.fail('dsl.capability', 'Capabilities must use cap("name").', call.span);
       }
-      const [name] = this.arguments(call, 'cap', 1, 1);
+      const name = this.arguments(call, 'cap', 1, 1)[0]!;
       const capability = this.stringValue(name, 'capability name');
       this.capabilities.add(capability);
       return capability;
@@ -590,20 +603,20 @@ class AuthorModuleCompiler {
   private objectEntries(expression: Expression, context: string): Map<string, Expression> {
     return this.resolveStatic(expression, `an object for ${context}`, (resolved) => {
       if (resolved.type !== 'ObjectExpression') {
-        this.fail('dsl.object', `${context} must be a static object literal.`, resolved.span);
+        this.fail('dsl.object', `${context} must be a static object literal.`, spanOf(resolved));
       }
 
       const entries = new Map<string, Expression>();
       for (const property of resolved.properties) {
         if (property.type === 'SpreadElement') {
-          this.fail('dsl.object', 'Object spread is not supported in the author DSL.', property.span);
+          this.fail('dsl.object', 'Object spread is not supported in the author DSL.', spanOf(property));
         }
         if (property.type !== 'KeyValueProperty') {
-          this.fail('dsl.object', 'Object methods, accessors, and shorthand properties are not supported.', property.span);
+          this.fail('dsl.object', 'Object methods, accessors, and shorthand properties are not supported.', spanOf(property));
         }
         const key = this.propertyName(property.key);
         if (entries.has(key)) {
-          this.fail('dsl.object', `The object property "${key}" is declared more than once.`, property.span);
+          this.fail('dsl.object', `The object property "${key}" is declared more than once.`, spanOf(property));
         }
         entries.set(key, property.value);
       }
@@ -618,13 +631,13 @@ class AuthorModuleCompiler {
     if (key.type === 'NumericLiteral') {
       return String(key.value);
     }
-    this.fail('dsl.object', 'Computed and bigint object property names are not supported.', key.span);
+    this.fail('dsl.object', 'Computed and bigint object property names are not supported.', spanOf(key));
   }
 
   private stringValue(expression: Expression, context: string): string {
     const value = this.compileValue(expression);
     if (value.kind !== 'literal' || typeof value.value !== 'string') {
-      this.fail('dsl.value', `${context} must be a static string.`, this.unwrap(expression).span);
+      this.fail('dsl.value', `${context} must be a static string.`, spanOf(this.unwrap(expression)));
     }
     return value.value;
   }
@@ -633,9 +646,9 @@ class AuthorModuleCompiler {
     const path = this.stringValue(expression, 'state path');
     const normalized = path.startsWith('state.') ? path : `state.${path}`;
     if (normalized === 'state.') {
-      this.fail('dsl.action', 'A state path cannot be empty.', this.unwrap(expression).span);
+      this.fail('dsl.action', 'A state path cannot be empty.', spanOf(this.unwrap(expression)));
     }
-    return normalized;
+    return normalized as `state.${string}`;
   }
 
   private requiredField(fields: Map<string, Expression>, key: string, owner: { span: Span }): Expression {
@@ -657,7 +670,7 @@ class AuthorModuleCompiler {
   private asCall(expression: Expression, context: string): Extract<Expression, { type: 'CallExpression' }> {
     const resolved = this.unwrap(expression);
     if (resolved.type !== 'CallExpression') {
-      this.fail('dsl.call', `${context} must be a call to a supported DSL constructor.`, resolved.span);
+      this.fail('dsl.call', `${context} must be a call to a supported DSL constructor.`, spanOf(resolved));
     }
     return resolved;
   }
@@ -680,7 +693,7 @@ class AuthorModuleCompiler {
   }
 
   private memberCall(callee: Expression | { type: 'Super' | 'Import' }): MemberCall | undefined {
-    const resolved = this.unwrap(callee);
+    const resolved = this.unwrapCallee(callee);
     if (resolved.type !== 'MemberExpression' || resolved.object.type !== 'Identifier' || resolved.property.type !== 'Identifier') {
       return undefined;
     }
@@ -689,11 +702,11 @@ class AuthorModuleCompiler {
   }
 
   private importedSymbol(expression: Expression | { type: 'Super' | 'Import' }): string | undefined {
-    const resolved = this.unwrap(expression);
+    const resolved = this.unwrapCallee(expression);
     return resolved.type === 'Identifier' ? this.imports.get(resolved.value) : undefined;
   }
 
-  private resolveStatic<T>(expression: Expression, context: string, compile: (resolved: Expression) => T): T {
+  private resolveStatic<T>(expression: Expression, _context: string, compile: (resolved: Expression) => T): T {
     const resolved = this.unwrap(expression);
     if (resolved.type !== 'Identifier' || !this.constants.has(resolved.value)) {
       return compile(resolved);
@@ -722,7 +735,7 @@ class AuthorModuleCompiler {
     }
   }
 
-  private unwrap(expression: Expression | { type: 'Super' | 'Import' }): Expression | { type: 'Super' | 'Import' } {
+  private unwrap(expression: Expression): Expression {
     if (
       expression.type === 'ParenthesisExpression' ||
       expression.type === 'TsAsExpression' ||
@@ -735,6 +748,13 @@ class AuthorModuleCompiler {
       return this.unwrap(expression.expression);
     }
     return expression;
+  }
+
+  private unwrapCallee(expression: Expression | { type: 'Super' | 'Import' }): Expression | { type: 'Super' | 'Import' } {
+    if (expression.type === 'Super' || expression.type === 'Import') {
+      return expression;
+    }
+    return this.unwrap(expression);
   }
 
   private isArray(expression: Expression): boolean {
@@ -754,6 +774,23 @@ function argumentCountLabel(minimum: number, maximum: number): string {
     return `at least ${minimum} arguments`;
   }
   return `${minimum} to ${maximum} arguments`;
+}
+
+function spanOf(value: unknown): Span | undefined {
+  if (typeof value === 'object' && value !== null && 'span' in value) {
+    const span = value.span;
+    if (
+      typeof span === 'object' &&
+      span !== null &&
+      'start' in span &&
+      'end' in span &&
+      typeof span.start === 'number' &&
+      typeof span.end === 'number'
+    ) {
+      return { start: span.start, end: span.end };
+    }
+  }
+  return undefined;
 }
 
 function toIssue(source: string, error: unknown): CodecIssue {
