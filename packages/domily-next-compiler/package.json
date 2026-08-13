@@ -1,0 +1,26 @@
+{
+  "name": "@domily/next-compiler",
+  "version": "0.0.0",
+  "description": "Experimental static compiler for the Domily Next author DSL",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./lib --target browser --format esm --external @domily/next-ast --external @swc/core && tsc -p ./tsconfig.types.json",
+    "typecheck": "tsc -p ./tsconfig.json",
+    "lint": "oxlint --config=../../.oxlintrc.json src test",
+    "test": "bun test ./test"
+  },
+  "dependencies": {
+    "@domily/next-ast": "workspace:^",
+    "@swc/core": "1.15.47"
+  },
+  "license": "MIT"
+}

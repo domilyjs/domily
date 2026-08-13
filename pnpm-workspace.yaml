@@ -18,3 +18,5 @@ audit:
   level: high
 overrides:
   monaco-editor>dompurify: 3.4.13
+minimumReleaseAgeExclude:
+  - '@types/node@26.2.0'

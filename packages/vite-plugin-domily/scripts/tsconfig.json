@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "importHelpers": true,
+    "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "types": [
+      "node",
+      "bun",
+    ],
+    "lib": [
+      "ESNext",
+      "DOM",
+    ],
+    "verbatimModuleSyntax": true,
+    "rootDir": "."
+  },
+}

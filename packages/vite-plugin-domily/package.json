@@ -23,8 +23,7 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "@types/less": "^3.0.8",
-    "@types/node": "^25.5.0"
+    "@types/less": "^3.0.8"
   },
   "peerDependencies": {
     "vite": "^8.0.1"

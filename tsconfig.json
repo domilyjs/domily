@@ -23,6 +23,9 @@
       ],
       "@domily/next-loader": [
         "./packages/domily-next-loader/src/index.ts"
+      ],
+      "@domily/next-compiler": [
+        "./packages/domily-next-compiler/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,
