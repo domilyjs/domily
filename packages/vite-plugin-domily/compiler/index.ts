@@ -1,14 +1,33 @@
-import {
-  type JscConfig,
-  type ModuleItem,
-  parseSync,
-  printSync,
-  transform,
-} from "@swc/core";
-import type { VitePluginDomilyOptions } from "./utils";
-import { codeDataBinding } from "./data-binding";
+import { codeDataBinding } from './data-binding';
+import type { VitePluginDomilyOptions } from './utils';
 
-type Mode = "dev" | "build" | "unknown" | "scan";
+export type Mode = 'dev' | 'build' | 'unknown' | 'scan';
+
+interface SourceSpan {
+  start: number;
+  end: number;
+}
+
+interface ParsedProgram {
+  body: Array<SourceSpan & { type: string }>;
+}
+
+export interface OxcCompiler {
+  parse(
+    code: string,
+    options: { lang: 'js' | 'ts' | 'jsx' | 'tsx'; sourceType: 'module' },
+  ): { program: ParsedProgram };
+  transform(
+    code: string,
+    filename: string,
+    options: {
+      decorator: { legacy: true };
+      lang: 'js' | 'ts' | 'jsx' | 'tsx';
+      sourcemap: boolean;
+      target: string;
+    },
+  ): Promise<{ code: string; map?: { mappings: string } }>;
+}
 
 interface ParseResult {
   script: string;
@@ -18,80 +37,67 @@ interface ParseResult {
   cssPreprocessor: string;
 }
 
-function filterCode(
-  code: string,
-  filter: (node: ModuleItem) => boolean,
-  options: {
-    ts?: boolean;
-    mode?: Mode;
-  },
-) {
-  const ast = parseSync(code, {
-    syntax: options.ts ? "typescript" : "ecmascript",
+function splitModuleSource(code: string, compiler: OxcCompiler, ts: boolean) {
+  const { program } = compiler.parse(code, {
+    lang: ts ? 'tsx' : 'js',
+    sourceType: 'module',
   });
-  const filteredAst = {
-    ...ast,
-    body: ast.body.filter(filter),
-  };
-  return printSync(filteredAst, { minify: options.mode !== "dev" }).code;
-}
+  const imports: string[] = [];
+  const statements: string[] = [];
 
-function JSC(ts: boolean) {
-  const jsc: JscConfig = {
-    parser: {
-      syntax: ts ? "typescript" : "ecmascript",
-      tsx: true,
-      decorators: true,
-    },
-    target: "es2022",
-    minify: {
-      format: {
-        indentLevel: 2,
-      },
-    },
+  for (const statement of program.body) {
+    const source = code.slice(statement.start, statement.end);
+    if (statement.type === 'ImportDeclaration') {
+      imports.push(source);
+    } else {
+      statements.push(source);
+    }
+  }
+
+  return {
+    imports: imports.join('\n'),
+    statements: statements.join('\n'),
   };
-  return jsc;
 }
 
 function parse(code: string) {
   const codeBlockRegex = /```(\w*)\n([\s\S]*?)\n```/g;
 
   const result: ParseResult = {
-    script: "",
-    json: "",
-    style: "",
+    script: '',
+    json: '',
+    style: '',
     ts: false,
-    cssPreprocessor: "css",
+    cssPreprocessor: 'css',
   };
 
   let match: RegExpExecArray | null = null;
 
   while ((match = codeBlockRegex.exec(code)) !== null) {
-    // eslint-disable-next-line no-unused-vars
-    const [, lang = "", content = ""] = match;
+    const [, lang = '', content = ''] = match;
     const langLowerCase = lang.toLowerCase();
     switch (langLowerCase) {
-      case "json":
+      case 'json':
         result.json = content;
         break;
-      case "ts":
-      case "typescript":
+      case 'ts':
+      case 'typescript':
         result.ts = true;
         result.script = content;
         break;
-      case "js":
-      case "javascript":
+      case 'js':
+      case 'javascript':
         result.script = content;
         break;
-      case "less":
-      case "css":
-      case "scss":
-      case "sass":
+      case 'less':
+      case 'css':
+      case 'scss':
+      case 'sass':
         result.cssPreprocessor = langLowerCase;
         result.style = content;
         break;
       default:
-        if (content.trim().startsWith("{")) {
+        if (content.trim().startsWith('{')) {
           result.json = content;
         } else if (/(const|let|function)\s/.test(content)) {
           result.script = content;
@@ -109,19 +115,19 @@ function handleScript(code: ParseResult) {
 }
 
 async function handleStyle(code: ParseResult, mode: Mode) {
-  if (code.cssPreprocessor === "css") {
+  if (code.cssPreprocessor === 'css') {
     return code;
   }
-  if (code.cssPreprocessor === "less") {
-    const less = await import("less").then((e) => e.default);
-    const { css } = await less.render(code.style, { compress: mode !== "dev" });
+  if (code.cssPreprocessor === 'less') {
+    const less = await import('less').then((entry) => entry.default);
+    const { css } = await less.render(code.style, { compress: mode !== 'dev' });
     code.style = css;
   }
-  if (["scss", "sass"].includes(code.cssPreprocessor)) {
-    const sass = await import("sass").then((e) => e);
+  if (['scss', 'sass'].includes(code.cssPreprocessor)) {
+    const sass = await import('sass').then((entry) => entry);
     const { css } = sass.compileString(code.style, {
-      syntax: code.cssPreprocessor === "scss" ? "scss" : "indented",
-      style: mode === "dev" ? "expanded" : "compressed",
+      syntax: code.cssPreprocessor === 'scss' ? 'scss' : 'indented',
+      style: mode === 'dev' ? 'expanded' : 'compressed',
     });
     code.style = css;
   }
@@ -149,38 +155,28 @@ function handleTemplateStyle(json: string, style: string) {
   return template;
 }
 
-async function generateCodeText({
+function generateCodeText({
   name,
   script,
   template,
   options,
   ts,
-  mode,
+  compiler,
 }: {
   name: string;
   script: string;
   template: string;
   options: VitePluginDomilyOptions;
   ts: boolean;
-  mode: Mode;
+  compiler: OxcCompiler;
 }) {
-  const { enable = false, prefix = "d-" } = options.customElement ?? {};
-
+  const { enable = false, prefix = 'd-' } = options.customElement ?? {};
   const returnTemplate = enable
     ? `{ name: "${prefix}${name}", customElementComponent: ${template}}`
     : template;
-  const imports = filterCode(script, (n) => n.type === "ImportDeclaration", {
-    ts,
-    mode,
-  });
-  const others = filterCode(script, (n) => n.type !== "ImportDeclaration", {
-    ts,
-    mode,
-  });
-  const withProps = [others, returnTemplate].some((e) => e.includes("props"))
-    ? "props"
-    : "";
-  return `${imports}export default function(${withProps}){\n${others}return ${returnTemplate}\n}`;
+  const { imports, statements } = splitModuleSource(script, compiler, ts);
+  const withProps = [statements, returnTemplate].some((entry) => entry.includes('props')) ? 'props' : '';
+  return `${imports}\nexport default function(${withProps}){\n${statements}\nreturn ${returnTemplate}\n}`;
 }
 
 export async function transformDOMSingleFileComponentCode(
@@ -188,26 +184,23 @@ export async function transformDOMSingleFileComponentCode(
   code: string,
   mode: Mode,
   options: VitePluginDomilyOptions,
+  compiler: OxcCompiler,
+  filename: string,
 ) {
-  const { script, style, json, ts } = await handleStyle(
-    handleScript(parse(code)),
-    mode,
-  );
-  const template = handleTemplateStyle(json, style);
-
-  const codeText = await generateCodeText({
+  const { script, style, json, ts } = await handleStyle(handleScript(parse(code)), mode);
+  const codeText = generateCodeText({
     name,
     script,
-    template,
+    template: handleTemplateStyle(json, style),
     options,
     ts,
-    mode,
+    compiler,
   });
-
-  const result = await transform(codeText, {
-    jsc: JSC(ts),
-    minify: mode !== "dev",
-    sourceMaps: mode === "dev",
+  const result = await compiler.transform(codeText, filename, {
+    decorator: { legacy: true },
+    lang: ts ? 'tsx' : 'js',
+    sourcemap: mode === 'dev',
+    target: 'es2022',
   });
 
   return { code: result.code, map: result.map };

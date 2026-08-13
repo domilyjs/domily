@@ -22,5 +22,8 @@
     "@domily/next-ast": "workspace:^",
     "@swc/core": "1.15.47"
   },
+  "devDependencies": {
+    "@domily/next-codec-json": "workspace:^"
+  },
   "license": "MIT"
 }

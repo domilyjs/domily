@@ -360,14 +360,16 @@ codec.decode (JSON/YAML/TOML/TOON/BSON)
 ```text
 packages/
   runtime-core/          # 保持为 JS schema runtime；仅修复/维护
-  domily-next-ast/       # experimental Document AST、构造器、规范化；不含 I/O
-  domily-next-spec/      # AST 的 JSON Schema、版本迁移与校验
-  domily-next-codecs/    # DocumentCodec 接口与 JSON codec；其他格式可插拔
-  domily-next-compiler/  # 作者 DSL / 宏调用 -> Document AST；仅构建期使用
-  domily-next-expr/      # 纯表达式求值与依赖分析
-  domily-next-actions/   # 动作执行、状态事务、trace
-  domily-next-runtime/   # 文档生命周期、注册表、权限协调
-  domily-next-dom/       # 输出到现有 Domily runtime 的 adapter
+  ...
+domily-next/
+  ast/                   # experimental Document AST、构造器、规范化；不含 I/O
+  spec/                  # AST 的 JSON Schema、版本迁移与校验
+  codecs/                # DocumentCodec 接口与 JSON codec；其他格式可插拔
+  compiler/              # 作者 DSL / 宏调用 -> Document AST；仅构建期使用
+  expr/                  # 纯表达式求值与依赖分析
+  actions/               # 动作执行、状态事务、trace
+  runtime/               # 文档生命周期、注册表、权限协调
+  dom/                   # 输出到现有 Domily runtime 的 adapter
 ```
 
 只有协议与 MVP 被验证后，再讨论是否提取现有响应式或 DOM 渲染能力。现有项目不是废弃对象，而是可复用的第一个渲染后端和对比基线。

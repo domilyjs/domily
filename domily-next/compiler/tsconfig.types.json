@@ -7,7 +7,7 @@
     "rootDir": "./src",
     "noEmit": false,
     "paths": {
-      "@domily/next-ast": ["../domily-next-ast/lib/types/index.d.ts"]
+      "@domily/next-ast": ["../ast/lib/types/index.d.ts"]
     }
   }
 }

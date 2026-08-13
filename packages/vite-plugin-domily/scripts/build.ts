@@ -11,14 +11,14 @@ const build = async () => {
       target: "node" as const,
       format: "esm" as const,
       naming: {
-        entry: "[name].esm.[ext]",
+        entry: "[name].js",
       },
     },
     {
       target: "node" as const,
       format: "cjs" as const,
       naming: {
-        entry: "[name].cjs.[ext]",
+        entry: "[name].cjs",
       },
     },
   ];
@@ -30,7 +30,6 @@ const build = async () => {
         outdir,
         minify: true,
         external: [
-          "@swc/core",
           "less",
           "sass",
           "vite",

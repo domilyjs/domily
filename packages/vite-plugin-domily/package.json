@@ -1,19 +1,23 @@
 {
   "name": "vite-plugin-domily",
   "version": "0.0.2",
-  "main": "./lib/index.cjs.js",
-  "module": "./lib/index.esm.js",
+  "type": "module",
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.js",
   "types": "./lib/types/index.d.ts",
   "exports": {
-    "require": "./lib/index.cjs.js",
-    "import": "./lib/index.esm.js",
-    "types": "./lib/types/index.d.ts"
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "import": "./lib/index.js",
+      "require": "./lib/index.cjs"
+    }
   },
   "scripts": {
     "build": "bun run scripts/build.ts && bun run scripts/types.ts",
     "prepublishOnly": "npm version patch && bun run build",
     "release": "npm publish --access public",
-    "lint": "oxlint --config=../../.oxlintrc.json compiler index.ts --fix-suggestions"
+    "lint": "oxlint --config=../../.oxlintrc.json compiler index.ts --fix-suggestions",
+    "test": "bun test ./compiler"
   },
   "files": [
     "lib"
@@ -26,13 +30,10 @@
     "@types/less": "^3.0.8"
   },
   "peerDependencies": {
-    "vite": "^8.0.1"
+    "vite": "^8.2.1"
   },
   "optionalDependencies": {
-    "less": "^4.6.4",
-    "sass": "^1.98.0"
-  },
-  "dependencies": {
-    "@swc/core": "^1.15.21"
+    "less": "^4.8.1",
+    "sass": "^1.102.0"
   }
 }

@@ -11,6 +11,7 @@
     "noUncheckedIndexedAccess": true,
     "types": [
       "node",
+      "bun",
       "vite",
       "./types/domily.d.ts"
     ],

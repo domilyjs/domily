@@ -183,16 +183,16 @@ path = "state.newTitle"
 ## 8. 包结构与依赖方向
 
 ```text
-domily-next-ast           # 纯 TypeScript 类型、构造器、规范化、无 I/O
-domily-next-codec-core    # DocumentCodec、registry、诊断协议
-domily-next-codec-json    # 仅 JSON；MVP 必选
-domily-next-codec-yaml    # 可选；依赖 YAML parser
-domily-next-codec-toml    # 可选；依赖 TOML parser
-domily-next-codec-toon    # 可选；依赖 TOON parser
-domily-next-codec-bson    # 可选；依赖 BSON library
-domily-next-validator     # 只依赖 ast
-domily-next-runtime       # 依赖 ast + validator，不依赖任何 codec
-domily-next-dom           # runtime 到现有 Domily 的 renderer adapter
+domily-next/ast           # 纯 TypeScript 类型、构造器、规范化、无 I/O
+domily-next/codec-core    # DocumentCodec、registry、诊断协议
+domily-next/codec-json    # 仅 JSON；MVP 必选
+domily-next/codec-yaml    # 可选；依赖 YAML parser
+domily-next/codec-toml    # 可选；依赖 TOML parser
+domily-next/codec-toon    # 可选；依赖 TOON parser
+domily-next/codec-bson    # 可选；依赖 BSON library
+domily-next/validator     # 只依赖 ast
+domily-next/runtime       # 依赖 ast + validator，不依赖任何 codec
+domily-next/dom           # runtime 到现有 Domily 的 renderer adapter
 ```
 
 这条依赖方向避免了 YAML/TOML/TOON/BSON 依赖、解析错误和格式特性进入 runtime。MVP 只新引入 JSON codec，不增加 YAML/TOML/TOON/BSON 的第三方依赖。

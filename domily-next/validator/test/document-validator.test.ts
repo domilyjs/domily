@@ -5,7 +5,7 @@ import { parseJsonDocument } from '@domily/next-codec-json';
 import { createMvpHtmlRegistry, validateDocument } from '../src';
 
 const fixturePath = new URL(
-  '../../domily-next-codec-json/test/fixtures/todo.json',
+  '../../codec-json/test/fixtures/todo.json',
   import.meta.url,
 );
 const fixture = await Bun.file(fixturePath).text();

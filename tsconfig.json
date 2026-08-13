@@ -13,19 +13,19 @@
     "moduleResolution": "bundler",
     "paths": {
       "@domily/next-ast": [
-        "./packages/domily-next-ast/src/index.ts"
+        "./domily-next/ast/src/index.ts"
       ],
       "@domily/next-codec-json": [
-        "./packages/domily-next-codec-json/src/index.ts"
+        "./domily-next/codec-json/src/index.ts"
       ],
       "@domily/next-validator": [
-        "./packages/domily-next-validator/src/index.ts"
+        "./domily-next/validator/src/index.ts"
       ],
       "@domily/next-loader": [
-        "./packages/domily-next-loader/src/index.ts"
+        "./domily-next/loader/src/index.ts"
       ],
       "@domily/next-compiler": [
-        "./packages/domily-next-compiler/src/index.ts"
+        "./domily-next/compiler/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,

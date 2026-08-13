@@ -1,6 +1,6 @@
 # 0003：作者 DSL、受限宏与 Document AST 编译
 
-- 状态：核心作者规则已确认，待细化 API
+- 状态：MVP 静态 compiler 已实现；Vite 集成待实现
 - 日期：2026-08-12
 - 关联：[0001-schema-driven-ui.md](./0001-schema-driven-ui.md)、[0002-document-codecs.md](./0002-document-codecs.md)
 
@@ -36,7 +36,7 @@
 
 MVP 推荐 TypeScript DSL，而不是另造文本语法。它利用编辑器、类型系统和现有构建工具，并以显式宏调用保持 AI 可生成性。
 
-开发者示例：
+开发者示例（高阶 helper 的目标 API，需在后续 helper 包中实现）：
 
 ```ts
 import { defineDocument, state, derived, action, view, ref, event, cap } from "@domily/next";
@@ -244,11 +244,50 @@ runtime.registerCapability("orders.submit", {
 ## 10. MVP 实现顺序
 
 1. 先冻结 AST 类型与 JSON codec fixture；
-2. 再实现 TypeScript compiler 的最小白名单：`defineDocument`、`state`、`ref`、`derived`、`action`、`view.repeat` 与模块顶层静态 `const`；
+2. ✅ 实现 TypeScript compiler 的最小白名单：`defineDocument`、`state`、`ref`、`derived`、`action`、`cap`、`event`、`view.component` / `text` / `fragment` / `when` / `repeat` 与模块顶层静态 `const`；
 3. 对每个 DSL fixture 断言生成 AST 与 JSON fixture 等价；
 4. 接入 Vite 开发模式的编译错误和 `emit-ast`；
 5. 将第一份真实页面同时写成 DSL 与 JSON AST，前者给开发者、后者给 runtime/服务端；
 6. 在此之后才评价是否需要模板语言、YAML/TOON 作者格式或视觉编辑器。
+
+## 10.1 当前 compiler API 与边界
+
+当前实现位于 `@domily/next-compiler`，入口是 `compileAuthorModule(source)`。它只读取 TypeScript AST，**不 import、不执行、不解释** 作者模块中的 JavaScript；成功时返回冻结的 `Document AST`，失败时返回带行列号的 `CodecIssue`。
+
+低层、稳定的 MVP API 是：
+
+```ts
+import { action, cap, defineDocument, derived, event, ref, state, view } from "@domily/next";
+
+const row = view.component("p", {}, [view.text({ value: ref.item("todo", "title") })]);
+
+export default defineDocument({
+  id: "todos",
+  state: state({ title: "", todos: [] }),
+  derived: {
+    canSubmit: derived.not(derived.empty(ref.state("title"))),
+  },
+  actions: {
+    submit: [
+      action.call(cap("todos.create"), { args: { title: ref.state("title") } }),
+      action.set("title", ""),
+    ],
+  },
+  view: view.component(
+    "main",
+    {},
+    [view.component("input", { value: ref.state("title") }, [], { input: action.set("title", event.value()) })],
+  ),
+});
+```
+
+- `view.component(name, props?, children?, events?)` 是通用 HTML/宿主组件映射的低层构造器；事件键采用 DOM 风格小写名称，如 `input`、`click`。
+- `view.text(value | { value })`、`view.fragment(children)`、`view.when(condition, child)` 和 `view.repeat({ each, in, key?, template })` 直接映射到同名 AST 节点。
+- `action.set`、`merge`、`toggle`、`run`、`call`、`if`、`try` 及 `ref.state` / `ref.derived` / `ref.var` / `ref.error` / `ref.item` 都是静态构造器；`action.set("title", ...)` 会规范化为 AST 的 `state.title` 路径。
+- 所有 capability 由 `cap("name")` 声明，compiler 自动汇总到 `meta.capabilities`；可选的 `capabilities: [cap("name")]` 用于声明未被动作直接引用的权限。
+- 顶层 `const` 可内联值、动作列表和 view 片段，但仅能引用此前声明的常量；前向引用、循环、解构、展开、函数或任意 JavaScript 调用都会报错。
+
+`view.stack`、`view.button`、`view.textField`、`view.alert` 等高阶 API 仍是**设计方向**，不是 compiler MVP 的内建语法。它们应作为未来、同样受限的 helper 宏，在构建期降级为以上低层构造器，不能重新引入可执行的用户函数。
 
 ## 11. 已确认的作者规则
 
@@ -279,7 +318,7 @@ view.repeat({
 
 ### 12.2 静态 `const` 引用
 
-模块顶层静态 `const` 可引用此前已经声明的静态 `const`。compiler 构造依赖图并做拓扑展开；出现直接或间接循环引用立即抛出带源位置的编译错误。不能通过声明提升或延迟求值绕过这个规则。
+模块顶层静态 `const` 可引用此前已经声明的静态 `const`。compiler 按声明顺序内联；引用较晚声明的常量会立即失败，因此循环同样无法形成。不能通过声明提升或延迟求值绕过这个规则。
 
 ### 12.3 三种复用方式
 

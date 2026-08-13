@@ -191,23 +191,23 @@ class AuthorModuleCompiler {
     }
     const definition = this.arguments(call, 'defineDocument', 1, 1)[0]!;
     const fields = this.objectEntries(definition, 'defineDocument(...)');
-    this.rejectUnknownKeys(fields, new Set(['actions', 'capabilities', 'derived', 'id', 'lifecycle', 'state', 'view']), definition);
+    this.rejectUnknownKeys(fields, new Set(['actions', 'capabilities', 'derived', 'id', 'lifecycle', 'state', 'view']), spanOf(definition));
 
-    const id = this.stringValue(this.requiredField(fields, 'id', definition), 'document id');
+    const id = this.stringValue(this.requiredField(fields, 'id', spanOf(definition)), 'document id');
     const declaredCapabilities = fields.has('capabilities')
-      ? this.capabilityList(this.requiredField(fields, 'capabilities', definition))
+      ? this.capabilityList(this.requiredField(fields, 'capabilities', spanOf(definition)))
       : [];
-    const state = this.compileState(this.requiredField(fields, 'state', definition));
+    const state = this.compileState(this.requiredField(fields, 'state', spanOf(definition)));
     const derived = fields.has('derived')
-      ? this.valueRecord(this.requiredField(fields, 'derived', definition), 'derived')
+      ? this.valueRecord(this.requiredField(fields, 'derived', spanOf(definition)), 'derived')
       : {};
     const actions = fields.has('actions')
-      ? this.actionsRecord(this.requiredField(fields, 'actions', definition))
+      ? this.actionsRecord(this.requiredField(fields, 'actions', spanOf(definition)))
       : {};
     const lifecycle = fields.has('lifecycle')
-      ? this.lifecycleRecord(this.requiredField(fields, 'lifecycle', definition))
+      ? this.lifecycleRecord(this.requiredField(fields, 'lifecycle', spanOf(definition)))
       : {};
-    const view = this.compileView(this.requiredField(fields, 'view', definition));
+    const view = this.compileView(this.requiredField(fields, 'view', spanOf(definition)));
 
     for (const capability of declaredCapabilities) {
       this.capabilities.add(capability);
@@ -417,16 +417,16 @@ class AuthorModuleCompiler {
     const capability = actionArguments[0]!;
     const options = actionArguments[1];
     const optionsEntries = options ? this.objectEntries(options, 'action.call options') : new Map<string, Expression>();
-    this.rejectUnknownKeys(optionsEntries, new Set(['args', 'assign']), call);
+    this.rejectUnknownKeys(optionsEntries, new Set(['args', 'assign']), spanOf(call));
 
     return {
       kind: 'call',
       capability: this.compileCapability(capability),
       ...(optionsEntries.has('args')
-        ? { args: this.objectValue(this.requiredField(optionsEntries, 'args', call), 'action.call args') }
+        ? { args: this.objectValue(this.requiredField(optionsEntries, 'args', spanOf(call)), 'action.call args') }
         : {}),
       ...(optionsEntries.has('assign')
-        ? { assign: this.stringValue(this.requiredField(optionsEntries, 'assign', call), 'action.call assign') }
+        ? { assign: this.stringValue(this.requiredField(optionsEntries, 'assign', spanOf(call)), 'action.call assign') }
         : {}),
     };
   }
@@ -449,15 +449,15 @@ class AuthorModuleCompiler {
     const body = actionArguments[0]!;
     const options = actionArguments[1];
     const optionsEntries = options ? this.objectEntries(options, 'action.try options') : new Map<string, Expression>();
-    this.rejectUnknownKeys(optionsEntries, new Set(['catch', 'finally']), call);
+    this.rejectUnknownKeys(optionsEntries, new Set(['catch', 'finally']), spanOf(call));
     return {
       kind: 'try',
       body: this.compileActionList(body),
       ...(optionsEntries.has('catch')
-        ? { catch: this.compileActionList(this.requiredField(optionsEntries, 'catch', call)) }
+        ? { catch: this.compileActionList(this.requiredField(optionsEntries, 'catch', spanOf(call))) }
         : {}),
       ...(optionsEntries.has('finally')
-        ? { finally: this.compileActionList(this.requiredField(optionsEntries, 'finally', call)) }
+        ? { finally: this.compileActionList(this.requiredField(optionsEntries, 'finally', spanOf(call))) }
         : {}),
     };
   }
@@ -508,8 +508,8 @@ class AuthorModuleCompiler {
       return { kind: 'text', value: this.compileValue(value) };
     }
     const fields = this.objectEntries(value, 'view.text options');
-    this.rejectUnknownKeys(fields, new Set(['value']), value);
-    return { kind: 'text', value: this.compileValue(this.requiredField(fields, 'value', value)) };
+    this.rejectUnknownKeys(fields, new Set(['value']), spanOf(value));
+    return { kind: 'text', value: this.compileValue(this.requiredField(fields, 'value', spanOf(value))) };
   }
 
   private compileFragmentView(call: Extract<Expression, { type: 'CallExpression' }>): ViewNode {
@@ -531,20 +531,20 @@ class AuthorModuleCompiler {
   private compileRepeatView(call: Extract<Expression, { type: 'CallExpression' }>): ViewNode {
     const options = this.arguments(call, 'view.repeat', 1, 1)[0]!;
     const fields = this.objectEntries(options, 'view.repeat options');
-    this.rejectUnknownKeys(fields, new Set(['each', 'in', 'key', 'template']), options);
+    this.rejectUnknownKeys(fields, new Set(['each', 'in', 'key', 'template']), spanOf(options));
     return {
       kind: 'repeat',
-      each: this.stringValue(this.requiredField(fields, 'each', options), 'repeat item name'),
-      in: this.compileValue(this.requiredField(fields, 'in', options)),
-      ...(fields.has('key') ? { key: this.compileValue(this.requiredField(fields, 'key', options)) } : {}),
-      template: this.compileView(this.requiredField(fields, 'template', options)),
+      each: this.stringValue(this.requiredField(fields, 'each', spanOf(options)), 'repeat item name'),
+      in: this.compileValue(this.requiredField(fields, 'in', spanOf(options))),
+      ...(fields.has('key') ? { key: this.compileValue(this.requiredField(fields, 'key', spanOf(options))) } : {}),
+      template: this.compileView(this.requiredField(fields, 'template', spanOf(options))),
     };
   }
 
   private viewList(expression: Expression): ViewNode[] {
     return this.resolveStatic(expression, 'a view list', (resolved) => {
       if (resolved.type !== 'ArrayExpression') {
-        this.fail('dsl.view', 'View children must be a static array.', resolved.span);
+        this.fail('dsl.view', 'View children must be a static array.', spanOf(resolved));
       }
       return resolved.elements.map((element) => {
         if (!element || element.spread) {
@@ -580,7 +580,7 @@ class AuthorModuleCompiler {
   private capabilityList(expression: Expression): string[] {
     return this.resolveStatic(expression, 'a capability list', (resolved) => {
       if (resolved.type !== 'ArrayExpression') {
-        this.fail('dsl.capability', 'The capabilities field must be a static array of cap(...) calls.', resolved.span);
+        this.fail('dsl.capability', 'The capabilities field must be a static array of cap(...) calls.', spanOf(resolved));
       }
       return resolved.elements.map((element) => {
         if (!element || element.spread) {
@@ -651,18 +651,18 @@ class AuthorModuleCompiler {
     return normalized as `state.${string}`;
   }
 
-  private requiredField(fields: Map<string, Expression>, key: string, owner: { span: Span }): Expression {
+  private requiredField(fields: Map<string, Expression>, key: string, span?: Span): Expression {
     const value = fields.get(key);
     if (!value) {
-      this.fail('dsl.object', `The required "${key}" property is missing.`, owner.span);
+      this.fail('dsl.object', `The required "${key}" property is missing.`, span);
     }
     return value;
   }
 
-  private rejectUnknownKeys(fields: Map<string, Expression>, allowed: Set<string>, owner: { span: Span }): void {
+  private rejectUnknownKeys(fields: Map<string, Expression>, allowed: Set<string>, span?: Span): void {
     for (const key of fields.keys()) {
       if (!allowed.has(key)) {
-        this.fail('dsl.object', `The property "${key}" is not allowed here.`, owner.span);
+        this.fail('dsl.object', `The property "${key}" is not allowed here.`, span);
       }
     }
   }
@@ -728,7 +728,7 @@ class AuthorModuleCompiler {
     this.constantLimit = binding.index;
     this.resolvingConstants.add(resolved.value);
     try {
-      return compile(binding.expression);
+      return this.resolveStatic(binding.expression, _context, compile);
     } finally {
       this.resolvingConstants.delete(resolved.value);
       this.constantLimit = previousLimit;
@@ -754,7 +754,7 @@ class AuthorModuleCompiler {
     if (expression.type === 'Super' || expression.type === 'Import') {
       return expression;
     }
-    return this.unwrap(expression);
+    return this.unwrap(expression as Expression);
   }
 
   private isArray(expression: Expression): boolean {
@@ -809,7 +809,7 @@ function toIssue(source: string, error: unknown): CodecIssue {
 }
 
 function sourceLocation(source: string, start: number): { line: number; column: number; offset: number } {
-  const offset = Math.max(0, start - 1);
+  const offset = sourceOffsetFromUtf8BytePosition(source, Math.max(0, start - 1));
   const before = source.slice(0, offset);
   const line = before.split('\n').length;
   const lastLineBreak = before.lastIndexOf('\n');
@@ -818,4 +818,22 @@ function sourceLocation(source: string, start: number): { line: number; column: 
     column: offset - lastLineBreak,
     offset,
   };
+}
+
+function sourceOffsetFromUtf8BytePosition(source: string, bytePosition: number): number {
+  let byteOffset = 0;
+  let sourceOffset = 0;
+
+  while (sourceOffset < source.length && byteOffset < bytePosition) {
+    const codePoint = source.codePointAt(sourceOffset)!;
+    const width = codePoint > 0xffff ? 2 : 1;
+    const utf8Length = codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4;
+    if (byteOffset + utf8Length > bytePosition) {
+      break;
+    }
+    byteOffset += utf8Length;
+    sourceOffset += width;
+  }
+
+  return sourceOffset;
 }
