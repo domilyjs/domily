@@ -1,6 +1,6 @@
 # 0002：以 Document AST 为中心的多格式 Codec
 
-- 状态：核心规则已确认，待实现
+- 状态：JSON codec 与来源追踪 MVP 已实现；其他格式 codec 待实现
 - 日期：2026-08-12
 - 关联：[0001-schema-driven-ui.md](./0001-schema-driven-ui.md)
 
@@ -31,12 +31,12 @@ Domily Next 的语言定义是 `Document AST`，不是 JSON Object。JSON、YAML
 
 ```text
 source bytes/text
-  -> codec parser                  # JSON/YAML/TOML/TOON/BSON 的词法与语法
+  -> codec parser                  # JSON/YAML/TOML/TOON/BSON 的词法与语法；分配 SourceNodeId
   -> parsed Document AST           # 纯协议节点
-  -> parallel SourceMap            # AST node ID -> 原始位置；不污染 AST
-  -> normalizeDocument             # 填充规范默认值、对象排序无关化、冻结
+  -> SourceMap + NodeOrigins       # 平行来源信息；不污染 AST
+  -> normalizeDocument             # 填充规范默认值、对象排序无关化、冻结，并传播 NodeOrigins
   -> validateDocument              # AST、引用、组件、权限、资源限制
-  -> migrateDocument               # 明确版本迁移
+  -> migrateDocument               # 明确版本迁移，并传播/继承 NodeOrigins
   -> runtime
 ```
 
@@ -108,6 +108,38 @@ interface CodecRegistry {
 
 Codec 可以提供更丰富的 `parseWithSourceMap` API，但通用接口不能泄露任何格式库的 AST 或数据类型。`parse` 成功的唯一含义是“语法和语法级映射成功”；文档合法性仍由后续 `validateDocument` 决定。
 
+### 5.1 来源节点 ID 与迁移后的诊断
+
+`SourceNodeId` **必须在 parse 阶段分配**。它是一个只在单个原始 payload 内有效的、不透明来源节点标识，而不是 `Document AST` 的语义节点 ID：
+
+```ts
+type SourceNodeId = string;
+
+interface SourceRange {
+  start: SourceLocation;
+  end: SourceLocation;
+}
+
+interface SourceMap {
+  codecId: string;
+  nodes: Record<SourceNodeId, SourceRange>;
+}
+
+// 与 AST 对象并行保存；不序列化、不参与 hash 或签名。
+type NodeOrigins = WeakMap<object, readonly SourceNodeId[]>;
+```
+
+Codec 应按源格式中的结构路径确定性地分配 ID，例如 `json:/view/children/2/props/title`。不得以字节偏移或节点内容 hash 作为 ID：前者在编辑后不稳定，后者会使重复内容冲突。`SourceRange` 才保存实际的 start/end 偏移、行和列。
+
+`normalizeDocument` 与每个 `migrateDocument` 实现都必须接受并返回同一份平行的 `NodeOrigins` 语义：
+
+- 原样保留的 AST 节点保留原来的来源 ID；
+- 合并多个节点时，结果节点合并所有来源 ID；拆分一个节点时，所有派生节点继承该来源 ID；
+- 迁移新增、没有直接来源的节点继承最接近的触发/父节点来源；确实无合理来源时关联 document root，并在诊断中标记为“迁移生成”；
+- 任何诊断在规范化或迁移后都先通过 `NodeOrigins` 查到 `SourceNodeId`，再通过 `SourceMap` 回链至用户的原始文本位置。
+
+因此 `SourceMap` 和 `NodeOrigins` 不属于可签名、可缓存的 `Document` 值。离线缓存保留 raw payload；当需要重新显示带来源位置的诊断时，使用原 codec 重新 parse raw payload 并重建这两份边车数据。
+
 ## 6. 规范化和等价性
 
 每个 codec 需要通过同一组 fixture：
@@ -123,7 +155,7 @@ fixtures/todo.bson
 all normalize to the same Document AST
 ```
 
-等价性按 AST 结构比较，不按原始文本、键顺序、注释或 BSON 二进制表示比较。Codec 不必保留格式无关的信息（JSON 无注释），除非以后另建 editor/CST 层。
+等价性按 AST 结构比较，不按原始文本、键顺序、注释、来源 ID、`SourceMap`、`NodeOrigins` 或 BSON 二进制表示比较。Codec 不必保留格式无关的信息（JSON 无注释），除非以后另建 editor/CST 层。
 
 加载器可同时保存原始 payload 和规范化 AST：原始 payload 用于重新诊断、格式化回写、审计与未来 codec 升级；已验证 AST 用于离线快速 mount。两者通过 `documentId + revision + contentHash + codecId` 关联，不能只凭 URL 或文件名关联。
 
@@ -199,15 +231,13 @@ domily-next/dom           # runtime 到现有 Domily 的 renderer adapter
 
 ## 9. MVP 验收
 
-1. JSON codec 能解析、序列化并在 parse-serialize-parse 后产生等价 AST；
+1. ✅ JSON codec 能解析、序列化并在 parse-serialize-parse 后产生等价 AST；
 2. 任何 runtime API 都不能接收原始 JSON object 或 JSON 文本；
 3. AST fixture 覆盖引用、表达式、动作、生命周期和组件节点；
-4. codec 诊断能报告至少文件/行/列；
+4. ✅ JSON codec 诊断能报告至少文件/行/列，并能以 `SourceNodeId` 回链至原始 JSON 范围；
 5. `CodecRegistry` 可注册一个测试 codec，证明 runtime 不绑定 JSON；
 6. TOML/YAML/TOON/BSON 不进入 MVP 依赖树，但类型和 registry 边界允许其独立上线。
 
 ## 10. 已确认与未决细节
 
-已确认：AST 公共 API 在 `0.x` 为 `experimental`；source span 放在平行 `SourceMap`；AI 默认生成 TOON，JSON 用于服务端分发与缓存；缓存同时保存 raw payload 和已验证 AST。
-
-唯一未决的 codec 技术细节是：`SourceMap` 的 node ID 在 parse 阶段还是 normalize 阶段分配，以便迁移后仍能关联诊断。
+已确认：AST 公共 API 在 `0.x` 为 `experimental`；source span 放在平行 `SourceMap`；`SourceNodeId` 在 parse 阶段按 codec 的结构路径确定性分配，`normalizeDocument` 与 `migrateDocument` 通过平行 `NodeOrigins` 传播来源；AI 默认生成 TOON，JSON 用于服务端分发与缓存；缓存同时保存 raw payload 和已验证 AST。

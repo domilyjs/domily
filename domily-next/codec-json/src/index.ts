@@ -5,11 +5,15 @@ import {
   type CodecIssue,
   type CodecResult,
   type Document,
-  type DocumentCodec,
+  type DocumentCodecWithSourceMap,
   type ElementViewNode,
   type ExpressionNode,
   type JsonValue,
+  type NodeOrigins,
   type ObjectNode,
+  type SourceLocation,
+  type SourceMap,
+  type SourceMappedDocument,
   type ValueNode,
   type ViewNode,
 } from '@domily/next-ast';
@@ -37,15 +41,29 @@ const expressionOperators = new Set([
 
 type RawObject = Record<string, unknown>;
 
-export const jsonDocumentCodec: DocumentCodec = {
+export const jsonDocumentCodec: DocumentCodecWithSourceMap = {
   id: 'json',
   extensions: ['domily.json', 'json'],
   mediaTypes: ['application/json', 'application/vnd.domily+json'],
   parse: parseJsonDocument,
+  parseWithSourceMap: parseJsonDocumentWithSourceMap,
   serialize: serializeJsonDocument,
 };
 
 export function parseJsonDocument(input: string): CodecResult<Document> {
+  const result = parseJsonDocumentWithSourceMap(input);
+  if (!result.ok) {
+    return result;
+  }
+
+  return {
+    ok: true,
+    value: result.value.document,
+    issues: result.issues,
+  };
+}
+
+export function parseJsonDocumentWithSourceMap(input: string): CodecResult<SourceMappedDocument> {
   let raw: unknown;
   try {
     raw = JSON.parse(input);
@@ -57,9 +75,15 @@ export function parseJsonDocument(input: string): CodecResult<Document> {
   }
 
   try {
+    const sourceMap = createJsonSourceMap(input);
+    const document = freezeDocument(parseDocument(raw, 'document'));
     return {
       ok: true,
-      value: freezeDocument(parseDocument(raw, 'document')),
+      value: {
+        document,
+        sourceMap,
+        nodeOrigins: createNodeOrigins(document, raw),
+      },
       issues: [],
     };
   } catch (error) {
@@ -68,6 +92,344 @@ export function parseJsonDocument(input: string): CodecResult<Document> {
       issues: [createMappingIssue(input, error)],
     };
   }
+}
+
+function createJsonSourceMap(input: string): SourceMap {
+  return new JsonSourceMapParser(input).parse();
+}
+
+function createNodeOrigins(document: Document, raw: unknown): NodeOrigins {
+  const origins = new WeakMap<object, readonly string[]>();
+  const rawDocument = objectAt(raw, 'document');
+
+  const remember = (node: object, pointer: string) => {
+    origins.set(node, [sourceNodeId(pointer)]);
+  };
+  const fieldPointer = (object: RawObject, key: string, parentPointer: string) =>
+    Object.hasOwn(object, key) ? appendJsonPointer(parentPointer, key) : parentPointer;
+
+  const rememberValue = (value: ValueNode, rawValue: unknown, pointer: string): void => {
+    remember(value, pointer);
+
+    if (value.kind === 'array') {
+      const rawItems = arrayAt(rawValue, pointer);
+      value.items.forEach((item, index) => rememberValue(item, rawItems[index], appendJsonPointer(pointer, index)));
+      return;
+    }
+
+    if (value.kind === 'object') {
+      const rawEntries = objectAt(rawValue, pointer);
+      for (const [key, entry] of Object.entries(value.entries)) {
+        rememberValue(entry, rawEntries[key], appendJsonPointer(pointer, key));
+      }
+      return;
+    }
+
+    if (value.kind === 'expression') {
+      const rawExpression = objectAt(rawValue, pointer);
+      const rawArgs = rawExpression.args === undefined ? (rawExpression.arg === undefined ? [] : [rawExpression.arg]) : rawExpression.args;
+      const rawArgList = arrayAt(rawArgs, pointer);
+      const argsPointer = rawExpression.args === undefined ? appendJsonPointer(pointer, 'arg') : appendJsonPointer(pointer, 'args');
+      value.args.forEach((argument, index) => {
+        const argumentPointer = rawExpression.args === undefined ? argsPointer : appendJsonPointer(argsPointer, index);
+        rememberValue(argument, rawArgList[index], argumentPointer);
+      });
+    }
+  };
+
+  const rememberActions = (actions: ActionNode[], rawActions: unknown, pointer: string): void => {
+    const rawActionList = arrayAt(rawActions, pointer);
+    actions.forEach((action, index) => rememberAction(action, rawActionList[index], appendJsonPointer(pointer, index)));
+  };
+
+  const rememberAction = (action: ActionNode, rawAction: unknown, pointer: string): void => {
+    remember(action, pointer);
+    const input = objectAt(rawAction, pointer);
+
+    switch (action.kind) {
+      case 'set':
+      case 'merge':
+        rememberValue(action.value, input.value, appendJsonPointer(pointer, 'value'));
+        return;
+      case 'call':
+        if (action.args) {
+          rememberValue(action.args, input.args, appendJsonPointer(pointer, 'args'));
+        }
+        return;
+      case 'if':
+        rememberValue(action.condition, input.condition, appendJsonPointer(pointer, 'condition'));
+        rememberActions(action.then, input.then, appendJsonPointer(pointer, 'then'));
+        if (action.else) {
+          rememberActions(action.else, input.else, appendJsonPointer(pointer, 'else'));
+        }
+        return;
+      case 'try':
+        rememberActions(action.body, input.body, appendJsonPointer(pointer, 'body'));
+        if (action.catch) {
+          rememberActions(action.catch, input.catch, appendJsonPointer(pointer, 'catch'));
+        }
+        if (action.finally) {
+          rememberActions(action.finally, input.finally, appendJsonPointer(pointer, 'finally'));
+        }
+        return;
+      case 'run':
+      case 'toggle':
+        return;
+    }
+  };
+
+  const rememberView = (view: ViewNode, rawView: unknown, pointer: string): void => {
+    remember(view, pointer);
+    const input = objectAt(rawView, pointer);
+
+    switch (view.kind) {
+      case 'text':
+        rememberValue(view.value, input.value, appendJsonPointer(pointer, 'value'));
+        return;
+      case 'fragment':
+        rememberViews(view.children, input.children ?? [], fieldPointer(input, 'children', pointer));
+        return;
+      case 'when':
+        rememberValue(view.condition, input.condition, appendJsonPointer(pointer, 'condition'));
+        rememberView(view.child, input.child, appendJsonPointer(pointer, 'child'));
+        return;
+      case 'repeat':
+        rememberValue(view.in, input.in, appendJsonPointer(pointer, 'in'));
+        if (view.key) {
+          rememberValue(view.key, input.key, appendJsonPointer(pointer, 'key'));
+        }
+        rememberView(view.template, input.template, appendJsonPointer(pointer, 'template'));
+        return;
+      case 'element': {
+        const rawProps = objectAt(input.props ?? {}, appendJsonPointer(pointer, 'props'));
+        const propsPointer = fieldPointer(input, 'props', pointer);
+        for (const [key, value] of Object.entries(view.props)) {
+          rememberValue(value, rawProps[key], appendJsonPointer(propsPointer, key));
+        }
+
+        const rawEvents = objectAt(input.events ?? {}, appendJsonPointer(pointer, 'events'));
+        const eventsPointer = fieldPointer(input, 'events', pointer);
+        for (const [key, action] of Object.entries(view.events)) {
+          const rawEvent = rawEvents[key];
+          const eventPointer = appendJsonPointer(eventsPointer, key);
+          if (Array.isArray(action)) {
+            rememberActions(action, rawEvent, eventPointer);
+          } else {
+            rememberAction(action, rawEvent, eventPointer);
+          }
+        }
+
+        rememberViews(view.children, input.children ?? [], fieldPointer(input, 'children', pointer));
+      }
+    }
+  };
+
+  const rememberViews = (views: ViewNode[], rawViews: unknown, pointer: string): void => {
+    const rawViewList = arrayAt(rawViews, pointer);
+    views.forEach((view, index) => rememberView(view, rawViewList[index], appendJsonPointer(pointer, index)));
+  };
+
+  remember(document, '');
+  remember(document.meta, appendJsonPointer('', 'meta'));
+
+  const statePointer = fieldPointer(rawDocument, 'state', '');
+  rememberValue(document.state, rawDocument.state ?? {}, statePointer);
+
+  const derived = objectAt(rawDocument.derived ?? {}, appendJsonPointer('', 'derived'));
+  const derivedPointer = fieldPointer(rawDocument, 'derived', '');
+  for (const [key, value] of Object.entries(document.derived)) {
+    rememberValue(value, derived[key], appendJsonPointer(derivedPointer, key));
+  }
+
+  const actions = objectAt(rawDocument.actions ?? {}, appendJsonPointer('', 'actions'));
+  const actionsPointer = fieldPointer(rawDocument, 'actions', '');
+  for (const [key, value] of Object.entries(document.actions)) {
+    rememberActions(value, actions[key], appendJsonPointer(actionsPointer, key));
+  }
+
+  const lifecycle = objectAt(rawDocument.lifecycle ?? {}, appendJsonPointer('', 'lifecycle'));
+  const lifecyclePointer = fieldPointer(rawDocument, 'lifecycle', '');
+  for (const [key, value] of Object.entries(document.lifecycle)) {
+    const rawValue = lifecycle[key];
+    const pointer = appendJsonPointer(lifecyclePointer, key);
+    if (Array.isArray(value)) {
+      rememberActions(value, rawValue, pointer);
+    } else {
+      rememberAction(value, rawValue, pointer);
+    }
+  }
+
+  rememberView(document.view, rawDocument.view, appendJsonPointer('', 'view'));
+
+  return {
+    get(node) {
+      return origins.get(node);
+    },
+    has(node) {
+      return origins.has(node);
+    },
+  };
+}
+
+class JsonSourceMapParser {
+  private readonly lineStarts: number[] = [0];
+  private offset = 0;
+  private readonly nodes: Record<string, SourceMap['nodes'][string]> = {};
+
+  constructor(private readonly input: string) {
+    for (let index = 0; index < input.length; index += 1) {
+      if (input[index] === '\n') {
+        this.lineStarts.push(index + 1);
+      }
+    }
+  }
+
+  parse(): SourceMap {
+    this.skipWhitespace();
+    this.parseValue('');
+    this.skipWhitespace();
+    return {
+      codecId: 'json',
+      nodes: this.nodes,
+    };
+  }
+
+  private parseValue(pointer: string): void {
+    this.skipWhitespace();
+    const start = this.offset;
+    const token = this.input[this.offset];
+
+    if (token === '{') {
+      this.parseObject(pointer);
+    } else if (token === '[') {
+      this.parseArray(pointer);
+    } else if (token === '"') {
+      this.parseString();
+    } else if (token === 't') {
+      this.expect('true');
+    } else if (token === 'f') {
+      this.expect('false');
+    } else if (token === 'n') {
+      this.expect('null');
+    } else {
+      this.parseNumber();
+    }
+
+    this.nodes[sourceNodeId(pointer)] = {
+      start: this.locationAt(start),
+      end: this.locationAt(this.offset),
+    };
+  }
+
+  private parseObject(pointer: string): void {
+    this.offset += 1;
+    this.skipWhitespace();
+    if (this.input[this.offset] === '}') {
+      this.offset += 1;
+      return;
+    }
+
+    while (true) {
+      const key = this.parseString();
+      this.skipWhitespace();
+      this.expect(':');
+      this.parseValue(appendJsonPointer(pointer, key));
+      this.skipWhitespace();
+      if (this.input[this.offset] === '}') {
+        this.offset += 1;
+        return;
+      }
+      this.expect(',');
+      this.skipWhitespace();
+    }
+  }
+
+  private parseArray(pointer: string): void {
+    this.offset += 1;
+    this.skipWhitespace();
+    let index = 0;
+    if (this.input[this.offset] === ']') {
+      this.offset += 1;
+      return;
+    }
+
+    while (true) {
+      this.parseValue(appendJsonPointer(pointer, index));
+      index += 1;
+      this.skipWhitespace();
+      if (this.input[this.offset] === ']') {
+        this.offset += 1;
+        return;
+      }
+      this.expect(',');
+      this.skipWhitespace();
+    }
+  }
+
+  private parseString(): string {
+    const start = this.offset;
+    this.expect('"');
+    while (this.offset < this.input.length) {
+      const character = this.input[this.offset];
+      if (character === '"') {
+        this.offset += 1;
+        return JSON.parse(this.input.slice(start, this.offset)) as string;
+      }
+      if (character === '\\') {
+        this.offset += 2;
+      } else {
+        this.offset += 1;
+      }
+    }
+    throw new Error('Unterminated JSON string.');
+  }
+
+  private parseNumber(): void {
+    const match = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+    match.lastIndex = this.offset;
+    const value = match.exec(this.input);
+    if (!value) {
+      throw new Error(`Expected JSON value at offset ${this.offset}.`);
+    }
+    this.offset += value[0].length;
+  }
+
+  private skipWhitespace(): void {
+    while (/\s/.test(this.input[this.offset] ?? '')) {
+      this.offset += 1;
+    }
+  }
+
+  private expect(token: string): void {
+    if (!this.input.startsWith(token, this.offset)) {
+      throw new Error(`Expected "${token}" at offset ${this.offset}.`);
+    }
+    this.offset += token.length;
+  }
+
+  private locationAt(offset: number): SourceLocation {
+    let lower = 0;
+    let upper = this.lineStarts.length;
+    while (lower + 1 < upper) {
+      const middle = Math.floor((lower + upper) / 2);
+      if ((this.lineStarts[middle] ?? 0) <= offset) {
+        lower = middle;
+      } else {
+        upper = middle;
+      }
+    }
+    const lineStart = this.lineStarts[lower] ?? 0;
+    return { line: lower + 1, column: offset - lineStart + 1, offset };
+  }
+}
+
+function appendJsonPointer(pointer: string, segment: string | number): string {
+  const escaped = String(segment).replaceAll('~', '~0').replaceAll('/', '~1');
+  return `${pointer}/${escaped}`;
+}
+
+function sourceNodeId(pointer: string): string {
+  return `json:${pointer || '/'}`;
 }
 
 export function serializeJsonDocument(document: Document): CodecResult<string> {

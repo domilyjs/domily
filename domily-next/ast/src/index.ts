@@ -162,8 +162,32 @@ export interface SourceLocation {
   offset?: number;
 }
 
+export type SourceNodeId = string;
+
+export interface SourceRange {
+  start: SourceLocation;
+  end: SourceLocation;
+}
+
 export interface SourceMap {
-  nodes: Record<string, SourceLocation>;
+  codecId: string;
+  nodes: Record<SourceNodeId, SourceRange>;
+}
+
+/**
+ * Read-only provenance sidecar for one parsed document. It is intentionally
+ * separate from Document so source positions cannot affect its semantics,
+ * hashes, signatures, or serialization.
+ */
+export interface NodeOrigins {
+  get(node: object): readonly SourceNodeId[] | undefined;
+  has(node: object): boolean;
+}
+
+export interface SourceMappedDocument {
+  document: Document;
+  sourceMap: SourceMap;
+  nodeOrigins: NodeOrigins;
 }
 
 export interface CodecIssue {
@@ -187,6 +211,10 @@ export interface DocumentCodec<Input = string> {
   readonly mediaTypes: readonly string[];
   parse(input: Input): CodecResult<Document>;
   serialize(document: Document): CodecResult<Input>;
+}
+
+export interface DocumentCodecWithSourceMap<Input = string> extends DocumentCodec<Input> {
+  parseWithSourceMap(input: Input): CodecResult<SourceMappedDocument>;
 }
 
 export interface CodecRegistry {

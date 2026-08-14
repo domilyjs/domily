@@ -7,7 +7,7 @@
 | 提案 | 状态 | 说明 |
 | --- | --- | --- |
 | [0001-schema-driven-ui.md](./0001-schema-driven-ui.md) | 讨论中 | 可序列化、受限且可审计的 UI 协议草案 |
-| [0002-document-codecs.md](./0002-document-codecs.md) | 讨论中 | AST 优先的多格式 codec、限制与兼容性规则 |
+| [0002-document-codecs.md](./0002-document-codecs.md) | MVP 部分已实现 | JSON codec、来源追踪与多格式扩展边界 |
 | [0003-authoring-dsl.md](./0003-authoring-dsl.md) | MVP 部分已实现 | 面向开发者/AI 的作者 DSL 与 AST 编译边界；Vite 集成待实现 |
 | [0004-document-delivery.md](./0004-document-delivery.md) | 已确认 | 服务端交付 envelope、验证与离线缓存职责 |
 | [0005-html-component-policy.md](./0005-html-component-policy.md) | 已确认 | 通用 HTML 映射的白名单与安全边界 |
