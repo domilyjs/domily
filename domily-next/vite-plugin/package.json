@@ -13,16 +13,13 @@
     "lib"
   ],
   "scripts": {
-    "build": "rm -rf ./lib && bun build ./src/index.ts --outdir ./lib --target browser --format esm --external @domily/next-ast --external @domily/next-compiler && tsc -b ./tsconfig.types.json --force",
+    "build": "rm -rf ./lib && bun build ./src/index.ts --bundle --outdir ./lib --target node --format esm --external @domily/next --external @domily/next/codec --external @domily/next/compiler && tsc -b ./tsconfig.types.json --force",
     "typecheck": "tsc -p ./tsconfig.json",
     "lint": "oxlint --config=../../.oxlintrc.json src test",
     "test": "bun test ./test"
   },
-  "dependencies": {
-    "@domily/next-ast": "workspace:^",
-    "@domily/next-compiler": "workspace:^"
-  },
   "peerDependencies": {
+    "@domily/next": "workspace:^",
     "vite": "^8.2.1"
   },
   "license": "MIT"

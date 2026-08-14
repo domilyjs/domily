@@ -8,7 +8,8 @@
   },
   "include": [
     "domily-next/**/test/**/*.test.ts",
-    "packages/**/*.test.ts"
+    "packages/**/*.test.ts",
+    "examples/**/*.test.ts"
   ],
   "exclude": ["**/lib/**", "node_modules"]
 }

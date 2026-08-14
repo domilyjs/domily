@@ -1,15 +1,23 @@
 import { describe, expect, test } from 'bun:test';
 
-import { jsonDocumentCodec, parseJsonDocument, parseJsonDocumentWithSourceMap, serializeJsonDocument } from '../src';
+import { compileAuthorModule } from '@domily/next/compiler';
+import { createCodecRegistry } from '@domily/next/codec';
+import { jsonDocumentCodec, parseJsonDocument, parseJsonDocumentWithSourceMap, serializeJsonDocument } from '../src/index.ts';
 
-const fixturePath = new URL('./fixtures/todo.json', import.meta.url);
+const fixturePath = new URL('./fixtures/todo.dmy.json', import.meta.url);
 const fixture = await Bun.file(fixturePath).text();
+const authorFixture = await Bun.file(new URL('../../core/test/compiler/fixtures/todo.dmy.ts', import.meta.url)).text();
 
 describe('JSON document codec', () => {
   test('exposes the format-neutral codec contract', () => {
     expect(jsonDocumentCodec.id).toBe('json');
-    expect(jsonDocumentCodec.extensions).toContain('domily.json');
+    expect(jsonDocumentCodec.extensions).toEqual(['dmy.json']);
     expect(jsonDocumentCodec.mediaTypes).toContain('application/vnd.domily+json');
+
+    const registry = createCodecRegistry();
+    registry.register(jsonDocumentCodec);
+    expect(registry.byExtension('.dmy.json')).toBe(jsonDocumentCodec);
+    expect(registry.byExtension('.json')).toBeUndefined();
   });
 
   test('normalizes the todo fixture to a frozen AST', () => {
@@ -35,6 +43,10 @@ describe('JSON document codec', () => {
     });
     expect(Object.isFrozen(result.value)).toBe(true);
     expect(Object.isFrozen(result.value.view)).toBe(true);
+  });
+
+  test('normalizes the JSON fixture to the same AST as the core author compiler', () => {
+    expect(parseJsonDocument(fixture)).toEqual(compileAuthorModule(authorFixture));
   });
 
   test('round trips a normalized document without changing its AST', () => {

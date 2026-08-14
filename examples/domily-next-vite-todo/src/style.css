@@ -1,0 +1,138 @@
+:root {
+  background: #f6f8fb;
+  color: #172033;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  margin: 0 auto;
+  max-width: 720px;
+  padding: 56px 24px;
+}
+
+.app-shell__header {
+  margin-bottom: 20px;
+}
+
+.app-shell__header p:last-child {
+  color: #586174;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.eyebrow {
+  color: #4258d0;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+#domily-root > main {
+  background: #ffffff;
+  border: 1px solid #d9deea;
+  border-radius: 18px;
+  box-shadow: 0 20px 48px rgb(22 32 51 / 8%);
+  padding: 28px;
+}
+
+#domily-root h1 {
+  font-size: 1.45rem;
+  margin: 0 0 8px;
+}
+
+#domily-root h1 + p {
+  color: #586174;
+  margin: 0 0 24px;
+}
+
+#domily-root form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 18px;
+}
+
+#domily-root form label {
+  font-size: 0.85rem;
+  font-weight: 650;
+  grid-column: 1 / -1;
+}
+
+#domily-root input[type="text"] {
+  border: 1px solid #b9c2d5;
+  border-radius: 9px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+#domily-root button {
+  background: #4258d0;
+  border: 0;
+  border-radius: 9px;
+  color: white;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 10px 14px;
+}
+
+#domily-root button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+#domily-root ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+}
+
+#domily-root li {
+  border: 1px solid #e2e6ef;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+#domily-root li label {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+#domily-root input[type="checkbox"]:checked + span {
+  color: #778195;
+  text-decoration: line-through;
+}
+
+@media (max-width: 520px) {
+  .app-shell {
+    padding: 32px 16px;
+  }
+
+  #domily-root > main {
+    padding: 20px;
+  }
+
+  #domily-root form {
+    grid-template-columns: 1fr;
+  }
+}

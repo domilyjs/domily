@@ -5,10 +5,6 @@
     "declarationDir": "./lib/types",
     "emitDeclarationOnly": true,
     "rootDir": "./src",
-    "noEmit": false,
-    "paths": {
-      "@domily/next-ast": ["../ast/lib/types/index.d.ts"],
-      "@domily/next-compiler": ["../compiler/lib/types/index.d.ts"]
-    }
+    "noEmit": false
   }
 }

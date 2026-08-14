@@ -6,7 +6,7 @@
 
 ## 1. 决策
 
-`@domily/next-runtime` 是一个无 DOM、无网络、无存储依赖的 Document AST 解释器。它负责：
+`@domily/next` 核心包中的 runtime 模块是一个无 DOM、无网络、无存储依赖的 Document AST 解释器。它负责：
 
 - 保存和读取文档本地 state；
 - 纯计算引用与表达式；

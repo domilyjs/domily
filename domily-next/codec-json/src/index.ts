@@ -1,8 +1,15 @@
 import {
+  createDomilyApp,
+  type DomilyAppInstance,
+  type DomilyAppOptions,
+} from '@domily/next';
+import {
+  createCodecRegistry,
   freezeDocument,
   type ActionNode,
   type CallActionNode,
   type CodecIssue,
+  type CodecRegistry,
   type CodecResult,
   type Document,
   type DocumentCodecWithSourceMap,
@@ -16,7 +23,7 @@ import {
   type SourceMappedDocument,
   type ValueNode,
   type ViewNode,
-} from '@domily/next-ast';
+} from '@domily/next/codec';
 
 const expressionOperators = new Set([
   'add',
@@ -43,12 +50,34 @@ type RawObject = Record<string, unknown>;
 
 export const jsonDocumentCodec: DocumentCodecWithSourceMap = {
   id: 'json',
-  extensions: ['domily.json', 'json'],
+  extensions: ['dmy.json'],
   mediaTypes: ['application/json', 'application/vnd.domily+json'],
   parse: parseJsonDocument,
   parseWithSourceMap: parseJsonDocumentWithSourceMap,
   serialize: serializeJsonDocument,
 };
+
+export type DomilyJsonAppOptions = Omit<DomilyAppOptions, 'codecs'> & {
+  codecs?: CodecRegistry;
+};
+
+/** Creates a codec registry with the protocol's JSON delivery codec. */
+export function createJsonCodecRegistry(): CodecRegistry {
+  const codecs = createCodecRegistry();
+  codecs.register(jsonDocumentCodec);
+  return codecs;
+}
+
+/**
+ * JSON-enabled app convenience factory for server-delivered documents.
+ * Local AST-only apps should import createDomilyApp from @domily/next.
+ */
+export function createDomilyJsonApp(options: DomilyJsonAppOptions = {}): DomilyAppInstance {
+  return createDomilyApp({
+    ...options,
+    codecs: options.codecs ?? createJsonCodecRegistry(),
+  });
+}
 
 export function parseJsonDocument(input: string): CodecResult<Document> {
   const result = parseJsonDocumentWithSourceMap(input);

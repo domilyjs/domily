@@ -24,80 +24,36 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
-  domily-next/ast: {}
-
   domily-next/codec-json:
     dependencies:
-      '@domily/next-ast':
+      '@domily/next':
         specifier: workspace:^
-        version: link:../ast
+        version: link:../core
 
-  domily-next/compiler:
+  domily-next/core:
     dependencies:
-      '@domily/next-ast':
-        specifier: workspace:^
-        version: link:../ast
       '@swc/core':
         specifier: 1.15.47
         version: 1.15.47
-    devDependencies:
-      '@domily/next-codec-json':
-        specifier: workspace:^
-        version: link:../codec-json
-
-  domily-next/dom-host:
-    dependencies:
-      '@domily/next-ast':
-        specifier: workspace:^
-        version: link:../ast
-      '@domily/next-loader':
-        specifier: workspace:^
-        version: link:../loader
-      '@domily/next-renderer-dom':
-        specifier: workspace:^
-        version: link:../renderer-dom
-      '@domily/next-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@domily/next-validator':
-        specifier: workspace:^
-        version: link:../validator
-
-  domily-next/loader:
-    dependencies:
-      '@domily/next-ast':
-        specifier: workspace:^
-        version: link:../ast
-
-  domily-next/renderer-dom:
-    dependencies:
-      '@domily/next-ast':
-        specifier: workspace:^
-        version: link:../ast
-      '@domily/next-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-
-  domily-next/runtime:
-    dependencies:
-      '@domily/next-ast':
-        specifier: workspace:^
-        version: link:../ast
-
-  domily-next/validator:
-    dependencies:
-      '@domily/next-ast':
-        specifier: workspace:^
-        version: link:../ast
 
   domily-next/vite-plugin:
     dependencies:
-      '@domily/next-ast':
+      '@domily/next':
         specifier: workspace:^
-        version: link:../ast
-      '@domily/next-compiler':
+        version: link:../core
+      vite:
+        specifier: ^8.2.1
+        version: 8.2.1(@types/node@26.2.0)(less@4.9.0)(sass@1.102.0)
+
+  examples/domily-next-vite-todo:
+    dependencies:
+      '@domily/next':
         specifier: workspace:^
-        version: link:../compiler
+        version: link:../../domily-next/core
+    devDependencies:
+      '@domily/next-vite-plugin':
+        specifier: workspace:^
+        version: link:../../domily-next/vite-plugin
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@26.2.0)(less@4.9.0)(sass@1.102.0)

@@ -145,11 +145,11 @@ Codec 应按源格式中的结构路径确定性地分配 ID，例如 `json:/vie
 每个 codec 需要通过同一组 fixture：
 
 ```text
-fixtures/todo.json
-fixtures/todo.yaml
-fixtures/todo.toml
-fixtures/todo.toon
-fixtures/todo.bson
+fixtures/todo.dmy.json
+fixtures/todo.dmy.yaml
+fixtures/todo.dmy.toml
+fixtures/todo.dmy.toon
+fixtures/todo.dmy.bson
        │
        ▼
 all normalize to the same Document AST
@@ -163,7 +163,7 @@ all normalize to the same Document AST
 
 ### JSON — MVP 必选
 
-- `.domily.json` 与 `application/vnd.domily+json`；
+- `.dmy.json` 与 `application/vnd.domily+json`；
 - 服务端下发、离线缓存与测试 fixture 的标准载体；
 - 无扩展，严格 JSON；
 - 作者便利语法由 JSON codec 解析为 AST。
@@ -172,7 +172,7 @@ all normalize to the same Document AST
 
 - 只接受 JSON-compatible YAML 子集；
 - 禁止自定义 tag、锚点/别名、日期、二进制、NaN/Infinity 及隐式类型歧义；
-- 推荐 `.domily.yaml`，用于开发者手写配置；
+- 推荐 `.dmy.yaml`，用于开发者手写配置；
 - 允许注释作为源码编辑体验，不纳入运行时 AST。
 
 ### TOML — 后续 codec，采用显式 AST 表示
@@ -215,19 +215,23 @@ path = "state.newTitle"
 ## 8. 包结构与依赖方向
 
 ```text
-domily-next/ast           # 纯 TypeScript 类型、构造器、规范化、无 I/O
-domily-next/codec-core    # DocumentCodec、registry、诊断协议
-domily-next/codec-json    # 仅 JSON；MVP 必选
-domily-next/codec-yaml    # 可选；依赖 YAML parser
-domily-next/codec-toml    # 可选；依赖 TOML parser
-domily-next/codec-toon    # 可选；依赖 TOON parser
-domily-next/codec-bson    # 可选；依赖 BSON library
-domily-next/validator     # 只依赖 ast
-domily-next/runtime       # 依赖 ast + validator，不依赖任何 codec
-domily-next/dom           # runtime 到现有 Domily 的 renderer adapter
+domily-next/core/         # @domily/next
+  src/ast/                # 纯协议 AST 与 freeze
+  src/codec/              # DocumentCodec、registry、诊断、来源映射
+  src/compiler/           # 受限作者 DSL compiler
+  src/validator/          # AST/组件/capability 校验
+  src/runtime/            # 不依赖具体 codec
+  src/renderer-dom/       # DOM renderer
+  src/loader/             # envelope、缓存与 codec registry 消费者
+  src/dom-host/           # 端到端 host 组合
+domily-next/codec-json/   # @domily/next-codec-json；仅 JSON，MVP 已实现
+domily-next/codec-yaml/   # 后续；依赖 YAML parser
+domily-next/codec-toml/   # 后续；依赖 TOML parser
+domily-next/codec-toon/   # 后续；依赖 TOON parser
+domily-next/codec-bson/   # 后续；依赖 BSON library
 ```
 
-这条依赖方向避免了 YAML/TOML/TOON/BSON 依赖、解析错误和格式特性进入 runtime。MVP 只新引入 JSON codec，不增加 YAML/TOML/TOON/BSON 的第三方依赖。
+依赖严格单向：每个具体 codec 只依赖 `@domily/next/codec`（必要时也使用 `@domily/next` 的 app facade），`@domily/next` 不依赖任何具体 codec。这避免了 YAML/TOML/TOON/BSON 依赖、解析错误和格式特性进入 runtime。MVP 只实现 JSON codec，不增加 YAML/TOML/TOON/BSON 的第三方依赖。
 
 ## 9. MVP 验收
 

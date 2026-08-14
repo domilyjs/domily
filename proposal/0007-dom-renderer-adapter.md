@@ -6,7 +6,7 @@
 
 ## 1. 决策
 
-`@domily/next-renderer-dom` 是浏览器端的 adapter，而不是新的响应式框架或第二个 runtime。它只把已经通过 loader、validator 并交给 `DocumentRuntime` 的 `ViewNode` 渲染为 DOM：
+`@domily/next` 核心包中的 DOM renderer 模块是浏览器端的 adapter，而不是新的响应式框架或第二个 runtime。它只把已经通过 loader、validator 并交给 `DocumentRuntime` 的 `ViewNode` 渲染为 DOM：
 
 ```text
 validated Document + DocumentRuntime + trusted DOM component registry

@@ -1,6 +1,6 @@
 # 0003：作者 DSL、受限宏与 Document AST 编译
 
-- 状态：MVP 静态 compiler 与 Vite 集成已实现；作者 SDK 待实现
+- 状态：MVP 静态 compiler、Vite 集成与作者 SDK 已实现；深度类型推导待实现
 - 日期：2026-08-12
 - 关联：[0001-schema-driven-ui.md](./0001-schema-driven-ui.md)、[0002-document-codecs.md](./0002-document-codecs.md)
 
@@ -16,7 +16,7 @@
 ## 2. 分层与禁止项
 
 ```text
-作者 TypeScript DSL (.domily.ts)         AI / 服务端文档 (.domily.json)
+作者 TypeScript DSL (.dmy.ts)            AI / 服务端文档 (.dmy.json)
             │                                      │
             ▼                                      ▼
       build-time compiler                       codec + validator
@@ -29,7 +29,7 @@
 
 - DSL 宏只在构建期执行；它们不能作为服务端下发的“函数”或 browser runtime API。
 - compiler 必须输出不含函数、闭包、import、`eval` 或任意 JS 源码的 AST。
-- runtime 不加载 `.domily.ts`，也不执行来自文档的 JS。
+- runtime 不加载 `.dmy.ts`，也不执行来自文档的 JS。
 - AST 永远可以被 JSON codec 序列化；作者 DSL 不需要也不应被序列化。
 
 ## 3. 第一种作者语言：受限 TypeScript 宏 DSL
@@ -39,7 +39,7 @@ MVP 推荐 TypeScript DSL，而不是另造文本语法。它利用编辑器、�
 开发者示例（高阶 helper 的目标 API，需在后续 helper 包中实现）：
 
 ```ts
-import { defineDocument, state, derived, action, view, ref, event, cap } from "@domily/next";
+import { defineDocument, state, derived, action, view, ref, event, cap } from "@domily/next/author";
 
 export default defineDocument({
   id: "todo-list",
@@ -117,7 +117,7 @@ view.forEach("item", list.sort(compare), renderItem); // 外部函数不可序�
 ### 5.1 compiler 接受
 
 - 一个模块默认导出的 `defineDocument({ ... })` 调用；
-- 从 `@domily/next` 导入的具名 DSL 构造器；
+- 从 `@domily/next/author` 导入的具名 DSL 构造器；过渡期仍接受旧的 `@domily/next` 导入；
 - 字面量、对象、数组、模板字符串（仅静态片段）；
 - `view.repeat({ each, in, key, template })` 等显式模板构造器；
 - 模块顶层、纯静态、可被 compiler 内联的 `const` 声明；
@@ -201,7 +201,7 @@ DSL 与 AST 一一对应且没有隐藏计算，因此相同页面可以由开�
 
 待 DSL + AST MVP 稳定后，再按真实痛点添加，而不是先造多种语言：
 
-1. **模板语法**：例如 `.domily` 文件中的 `<Button on:click={run("save")}>`，其语义必须编译到同一 DSL/AST；
+1. **模板语法**：例如 `.dmy` 文件中的 `<Button on:click={run("save")}>`，其语义必须编译到同一 DSL/AST；
 2. **YAML/TOON 直接作者格式**：适合配置密集、批量文档与 AI 生成；TOON 是 AI 的默认输出，但交互仍使用 AST/动作构造；
 3. **视觉编辑器**：以 AST 作为存储/协作格式；
 4. **开发者 helper 包**：提供表单、资源、列表等高阶受限宏，但其产物仍只能是 AST。
@@ -233,7 +233,7 @@ runtime.registerCapability("orders.submit", {
 
 建议 Vite 插件在开发期提供：
 
-- `.domily.ts` -> `.domily.json` / AST module 的编译；
+- `.dmy.ts` -> `.dmy.json` / AST module 的编译；
 - 原始 DSL 位置到 AST 节点的 source map；
 - `?domily=ast` 虚拟模块或 `--emit-ast` 输出；
 - 生成 AST 与校验错误回链到 DSL 源码；
@@ -252,12 +252,12 @@ runtime.registerCapability("orders.submit", {
 
 ## 10.1 当前 compiler API 与边界
 
-当前实现位于 `@domily/next-compiler`，入口是 `compileAuthorModule(source)`。它只读取 TypeScript AST，**不 import、不执行、不解释** 作者模块中的 JavaScript；成功时返回冻结的 `Document AST`，失败时返回带行列号的 `CodecIssue`。
+当前实现位于 `@domily/next` 核心包的 `src/compiler/` 内部模块，入口是 `compileAuthorModule(source)`。业务作者只导入 `@domily/next/author`，并通过独立的 `@domily/next-vite-plugin` 使用 compiler；插件通过 `@domily/next/compiler` 的 adapter-facing 子路径单向依赖 core。compiler 只读取 TypeScript AST，**不 import、不执行、不解释** 作者模块中的 JavaScript；成功时返回冻结的 `Document AST`，失败时返回带行列号的 `CodecIssue`。
 
 低层、稳定的 MVP API 是：
 
 ```ts
-import { action, cap, defineDocument, derived, event, ref, state, view } from "@domily/next";
+import { action, cap, defineDocument, derived, event, ref, state, view } from "@domily/next/author";
 
 const row = view.component("p", {}, [view.text({ value: ref.item("todo", "title") })]);
 
@@ -291,7 +291,7 @@ export default defineDocument({
 
 ## 11. 已确认的作者规则
 
-1. 每个 `.domily.ts` 模块只能有一个默认导出的 `defineDocument`；可复用组件和静态片段通过受限构造器/静态 `const` 组织，不能再导出独立 Document。
+1. 每个 `.dmy.ts` 模块只能有一个默认导出的 `defineDocument`；可复用组件和静态片段通过受限构造器/静态 `const` 组织，不能再导出独立 Document。
 2. 列表使用专用的 `view.repeat({ each, in, key, template })`，不把箭头函数作为协议层的列表模板 API。
 3. 允许模块顶层纯静态 `const`；它没有独立的 runtime 词法作用域，也不影响全局词法环境，编译后必须完全内联消失。
 4. AI 输出由场景决定：本地开发与需要人工维护时优先 DSL；AI 默认生成 TOON AST；服务端下发、缓存和机器交换使用 JSON AST。TOON codec 是后续实现，不阻塞 JSON MVP。

@@ -12,29 +12,8 @@
     // Bundler mode
     "moduleResolution": "bundler",
     "paths": {
-      "@domily/next-ast": [
-        "./domily-next/ast/src/index.ts"
-      ],
       "@domily/next-codec-json": [
         "./domily-next/codec-json/src/index.ts"
-      ],
-      "@domily/next-validator": [
-        "./domily-next/validator/src/index.ts"
-      ],
-      "@domily/next-loader": [
-        "./domily-next/loader/src/index.ts"
-      ],
-      "@domily/next-compiler": [
-        "./domily-next/compiler/src/index.ts"
-      ],
-      "@domily/next-runtime": [
-        "./domily-next/runtime/src/index.ts"
-      ],
-      "@domily/next-renderer-dom": [
-        "./domily-next/renderer-dom/src/index.ts"
-      ],
-      "@domily/next-dom-host": [
-        "./domily-next/dom-host/src/index.ts"
       ],
       "@domily/next-vite-plugin": [
         "./domily-next/vite-plugin/src/index.ts"

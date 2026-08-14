@@ -1,0 +1,36 @@
+{
+  "name": "@domily/next",
+  "version": "0.0.0",
+  "description": "Core runtime, protocol, and authoring primitives for Domily Next",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "import": "./lib/index.js"
+    },
+    "./author": {
+      "types": "./lib/types/author.d.ts",
+      "import": "./lib/author.js"
+    },
+    "./codec": {
+      "types": "./lib/types/codec.d.ts",
+      "import": "./lib/codec.js"
+    },
+    "./compiler": {
+      "types": "./lib/types/compiler/index.d.ts",
+      "import": "./lib/compiler.js"
+    }
+  },
+  "files": ["lib"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf ./lib && bun build ./src/index.ts ./src/author.ts ./src/codec.ts --bundle --outdir ./lib --target browser --format esm && bun build ./src/compiler/index.ts --bundle --outfile ./lib/compiler.js --target node --format esm --external @swc/core && tsc -b ./tsconfig.types.json --force",
+    "typecheck": "tsc -p ./tsconfig.json",
+    "lint": "oxlint --config=../../.oxlintrc.json src test",
+    "test": "bun test ./test"
+  },
+  "dependencies": {
+    "@swc/core": "1.15.47"
+  },
+  "license": "MIT"
+}

@@ -6,7 +6,7 @@
 
 ## 1. 决策
 
-新增 `@domily/next-dom-host`，作为浏览器应用壳的唯一组合入口。它不创造新的协议语义，而是以固定顺序组装现有边界：
+核心包内部的 DOM host 模块作为浏览器应用壳的组合入口；业务侧通过 `@domily/next` 的 `createDomilyApp()` 使用它。它不创造新的协议语义，而是以固定顺序组装现有边界：
 
 ```text
 Envelope / local Document
