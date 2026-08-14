@@ -32,6 +32,9 @@
       ],
       "@domily/next-renderer-dom": [
         "./domily-next/renderer-dom/src/index.ts"
+      ],
+      "@domily/next-dom-host": [
+        "./domily-next/dom-host/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,

@@ -25,8 +25,12 @@ DOM renderer 接受的是宿主代码构造的 `DomComponentRegistry`，不能�
 ```ts
 interface DomComponentDefinition {
   tagName: string;
-  props: ReadonlyMap<string, DomPropWriter>;
-  events: ReadonlyMap<string, DomEventProjector>;
+  // 与 validator 共享的声明面
+  props: ReadonlySet<string>;
+  events: ReadonlySet<string>;
+  // 仅宿主可信 registry 可提供的 DOM 行为
+  propWriters: ReadonlyMap<string, DomPropWriter>;
+  eventProjectors: ReadonlyMap<string, DomEventProjector>;
 }
 
 interface DomComponentRegistry {

@@ -45,6 +45,24 @@ importers:
         specifier: workspace:^
         version: link:../codec-json
 
+  domily-next/dom-host:
+    dependencies:
+      '@domily/next-ast':
+        specifier: workspace:^
+        version: link:../ast
+      '@domily/next-loader':
+        specifier: workspace:^
+        version: link:../loader
+      '@domily/next-renderer-dom':
+        specifier: workspace:^
+        version: link:../renderer-dom
+      '@domily/next-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@domily/next-validator':
+        specifier: workspace:^
+        version: link:../validator
+
   domily-next/loader:
     dependencies:
       '@domily/next-ast':

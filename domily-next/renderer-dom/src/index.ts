@@ -14,8 +14,10 @@ export interface DomEventProjector {
 }
 
 export interface DomComponentDefinition {
-  events: ReadonlyMap<string, DomEventProjector>;
-  props: ReadonlyMap<string, DomPropWriter>;
+  eventProjectors: ReadonlyMap<string, DomEventProjector>;
+  events: ReadonlySet<string>;
+  propWriters: ReadonlyMap<string, DomPropWriter>;
+  props: ReadonlySet<string>;
   tagName: string;
 }
 
@@ -173,14 +175,14 @@ export class DomRenderer {
     element.setAttribute(INTERNAL_NODE_ATTRIBUTE, path);
 
     for (const [name, value] of Object.entries(view.props)) {
-      const writer = definition.props.get(name);
+      const writer = definition.propWriters.get(name);
       if (!writer || name.toLowerCase().startsWith('on')) {
         throw new DomRendererError('renderer.prop.disallowed', `Property "${name}" is not allowed on ${view.component}.`);
       }
       writer.write(element, this.runtime.evaluate(value, { scope }));
     }
     for (const [name, actions] of Object.entries(view.events)) {
-      const projector = definition.events.get(name);
+      const projector = definition.eventProjectors.get(name);
       if (!projector) {
         throw new DomRendererError('renderer.event.disallowed', `Event "${name}" is not allowed on ${view.component}.`);
       }
@@ -339,7 +341,13 @@ function definition(
   props: ReadonlyMap<string, DomPropWriter>,
   events: ReadonlyMap<string, DomEventProjector>,
 ): DomComponentDefinition {
-  return { tagName, props, events };
+  return {
+    eventProjectors: events,
+    events: new Set(events.keys()),
+    propWriters: props,
+    props: new Set(props.keys()),
+    tagName,
+  };
 }
 
 function createGlobalProps(): ReadonlyMap<string, DomPropWriter> {

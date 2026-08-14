@@ -13,6 +13,7 @@
 | [0005-html-component-policy.md](./0005-html-component-policy.md) | 已确认 | 通用 HTML 映射的白名单与安全边界 |
 | [0006-action-runtime.md](./0006-action-runtime.md) | MVP 已实现 | 受限动作、状态事务、capability 与 trace |
 | [0007-dom-renderer-adapter.md](./0007-dom-renderer-adapter.md) | MVP 已实现 | DOM adapter、受控组件注册表与事件投影 |
+| [0008-dom-host-composition.md](./0008-dom-host-composition.md) | MVP 已实现 | Loader、validator、runtime、renderer 的端到端宿主入口 |
 
 ## 约定
 
