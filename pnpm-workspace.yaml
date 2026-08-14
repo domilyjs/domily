@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - domily-next/*
+  - examples/*
 registries:
   default: https://registry.npmjs.org/
 minimumReleaseAge: 10080

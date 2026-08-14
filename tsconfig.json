@@ -35,6 +35,9 @@
       ],
       "@domily/next-dom-host": [
         "./domily-next/dom-host/src/index.ts"
+      ],
+      "@domily/next-vite-plugin": [
+        "./domily-next/vite-plugin/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,

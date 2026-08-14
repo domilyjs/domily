@@ -90,6 +90,18 @@ importers:
         specifier: workspace:^
         version: link:../ast
 
+  domily-next/vite-plugin:
+    dependencies:
+      '@domily/next-ast':
+        specifier: workspace:^
+        version: link:../ast
+      '@domily/next-compiler':
+        specifier: workspace:^
+        version: link:../compiler
+      vite:
+        specifier: ^8.2.1
+        version: 8.2.1(@types/node@26.2.0)(less@4.9.0)(sass@1.102.0)
+
   packages/domily:
     dependencies:
       '@domily/runtime-core':

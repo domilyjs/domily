@@ -1,0 +1,29 @@
+{
+  "name": "@domily/next-vite-plugin",
+  "version": "0.0.0",
+  "description": "Experimental Vite adapter for the Domily Next author DSL",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "rm -rf ./lib && bun build ./src/index.ts --outdir ./lib --target browser --format esm --external @domily/next-ast --external @domily/next-compiler && tsc -b ./tsconfig.types.json --force",
+    "typecheck": "tsc -p ./tsconfig.json",
+    "lint": "oxlint --config=../../.oxlintrc.json src test",
+    "test": "bun test ./test"
+  },
+  "dependencies": {
+    "@domily/next-ast": "workspace:^",
+    "@domily/next-compiler": "workspace:^"
+  },
+  "peerDependencies": {
+    "vite": "^8.2.1"
+  },
+  "license": "MIT"
+}

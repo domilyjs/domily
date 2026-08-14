@@ -8,12 +8,13 @@
 | --- | --- | --- |
 | [0001-schema-driven-ui.md](./0001-schema-driven-ui.md) | 讨论中 | 可序列化、受限且可审计的 UI 协议草案 |
 | [0002-document-codecs.md](./0002-document-codecs.md) | MVP 部分已实现 | JSON codec、来源追踪与多格式扩展边界 |
-| [0003-authoring-dsl.md](./0003-authoring-dsl.md) | MVP 部分已实现 | 面向开发者/AI 的作者 DSL 与 AST 编译边界；Vite 集成待实现 |
+| [0003-authoring-dsl.md](./0003-authoring-dsl.md) | MVP 部分已实现 | 面向开发者/AI 的作者 DSL 与 AST 编译边界；静态 compiler 和 Vite 集成已实现，作者 SDK 待实现 |
 | [0004-document-delivery.md](./0004-document-delivery.md) | 已确认 | 服务端交付 envelope、验证与离线缓存职责 |
 | [0005-html-component-policy.md](./0005-html-component-policy.md) | 已确认 | 通用 HTML 映射的白名单与安全边界 |
 | [0006-action-runtime.md](./0006-action-runtime.md) | MVP 已实现 | 受限动作、状态事务、capability 与 trace |
 | [0007-dom-renderer-adapter.md](./0007-dom-renderer-adapter.md) | MVP 已实现 | DOM adapter、受控组件注册表与事件投影 |
 | [0008-dom-host-composition.md](./0008-dom-host-composition.md) | MVP 已实现 | Loader、validator、runtime、renderer 的端到端宿主入口 |
+| [0009-vite-authoring-integration.md](./0009-vite-authoring-integration.md) | MVP 已实现 | `.domily.ts` 的 Vite 静态编译、诊断与本地 AST 模块 |
 
 ## 约定
 

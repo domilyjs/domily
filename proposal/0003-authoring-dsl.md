@@ -1,6 +1,6 @@
 # 0003：作者 DSL、受限宏与 Document AST 编译
 
-- 状态：MVP 静态 compiler 已实现；Vite 集成待实现
+- 状态：MVP 静态 compiler 与 Vite 集成已实现；作者 SDK 待实现
 - 日期：2026-08-12
 - 关联：[0001-schema-driven-ui.md](./0001-schema-driven-ui.md)、[0002-document-codecs.md](./0002-document-codecs.md)
 
@@ -246,7 +246,7 @@ runtime.registerCapability("orders.submit", {
 1. 先冻结 AST 类型与 JSON codec fixture；
 2. ✅ 实现 TypeScript compiler 的最小白名单：`defineDocument`、`state`、`ref`、`derived`、`action`、`cap`、`event`、`view.component` / `text` / `fragment` / `when` / `repeat` 与模块顶层静态 `const`；
 3. 对每个 DSL fixture 断言生成 AST 与 JSON fixture 等价；
-4. 接入 Vite 开发模式的编译错误和 `emit-ast`；
+4. ✅ 接入 Vite 开发模式的编译错误和 AST ES module 输出（`@domily/next-vite-plugin`）；
 5. 将第一份真实页面同时写成 DSL 与 JSON AST，前者给开发者、后者给 runtime/服务端；
 6. 在此之后才评价是否需要模板语言、YAML/TOON 作者格式或视觉编辑器。
 
