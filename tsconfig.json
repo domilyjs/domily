@@ -29,6 +29,9 @@
       ],
       "@domily/next-runtime": [
         "./domily-next/runtime/src/index.ts"
+      ],
+      "@domily/next-renderer-dom": [
+        "./domily-next/renderer-dom/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,

@@ -23,7 +23,7 @@ export interface ValidationOptions {
 
 export type ValidationResult = { ok: true; issues: [] } | { ok: false; issues: CodecIssue[] };
 
-const globalProps = new Set(['aria-label', 'class', 'data-testid', 'hidden', 'id', 'role', 'title']);
+const globalProps = new Set(['aria-label', 'data-testid', 'hidden', 'id', 'role', 'title']);
 
 const mvpHtmlComponents: Record<string, ComponentDefinition> = {
   a: component(['href', 'target', ...globalProps], ['blur', 'click', 'focus', 'keydown', 'keyup']),

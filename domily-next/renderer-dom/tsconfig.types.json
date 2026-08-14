@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationDir": "./lib/types",
+    "emitDeclarationOnly": true,
+    "rootDir": "./src",
+    "noEmit": false,
+    "paths": {
+      "@domily/next-ast": ["../ast/lib/types/index.d.ts"],
+      "@domily/next-runtime": ["../runtime/lib/types/index.d.ts"]
+    }
+  }
+}

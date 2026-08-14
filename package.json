@@ -8,7 +8,7 @@
     "build:dr": "pnpm --filter @domily/router run build",
     "build:vp": "pnpm --filter vite-plugin-domily run build",
     "build:domily": "pnpm --filter domily run build",
-    "build:next": "pnpm --filter @domily/next-ast --filter @domily/next-codec-json --filter @domily/next-validator --filter @domily/next-loader --filter @domily/next-compiler --filter @domily/next-runtime run build",
+    "build:next": "pnpm --filter @domily/next-ast --filter @domily/next-codec-json --filter @domily/next-validator --filter @domily/next-loader --filter @domily/next-compiler --filter @domily/next-runtime --filter @domily/next-renderer-dom run build",
     "build": "bun lint:all && bun build:rc && bun build:dr && bun build:vp && bun build:domily",
     "typecheck:test": "tsc -p ./tsconfig.test.json",
     "build:playground": "bun run build && pnpm --filter domily-playground run build",

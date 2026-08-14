@@ -51,6 +51,15 @@ importers:
         specifier: workspace:^
         version: link:../ast
 
+  domily-next/renderer-dom:
+    dependencies:
+      '@domily/next-ast':
+        specifier: workspace:^
+        version: link:../ast
+      '@domily/next-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+
   domily-next/runtime:
     dependencies:
       '@domily/next-ast':
