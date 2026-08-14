@@ -26,6 +26,9 @@
       ],
       "@domily/next-compiler": [
         "./domily-next/compiler/src/index.ts"
+      ],
+      "@domily/next-runtime": [
+        "./domily-next/runtime/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,

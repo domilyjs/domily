@@ -11,6 +11,7 @@
 | [0003-authoring-dsl.md](./0003-authoring-dsl.md) | MVP 部分已实现 | 面向开发者/AI 的作者 DSL 与 AST 编译边界；Vite 集成待实现 |
 | [0004-document-delivery.md](./0004-document-delivery.md) | 已确认 | 服务端交付 envelope、验证与离线缓存职责 |
 | [0005-html-component-policy.md](./0005-html-component-policy.md) | 已确认 | 通用 HTML 映射的白名单与安全边界 |
+| [0006-action-runtime.md](./0006-action-runtime.md) | MVP 已实现 | 受限动作、状态事务、capability 与 trace |
 
 ## 约定
 
