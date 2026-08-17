@@ -1,149 +1,82 @@
 import { describe, expect, test } from 'bun:test';
 
-import { compileAuthorModule } from '@domily/next/compiler';
-import { createCodecRegistry } from '@domily/next/codec';
-import { jsonDocumentCodec, parseJsonDocument, parseJsonDocumentWithSourceMap, serializeJsonDocument } from '../src/index.ts';
+import { createSourceCodecRegistry } from '@domily/next/codec';
+import { normalizePageSpec } from '@domily/next/pagespec';
+import { createPageRegistry, type CapabilityCatalogManifest } from '@domily/next/registry';
+import { nativeHtmlCatalog } from '@domily/next/native-html';
+import {
+  createJsonSourceCodecRegistry,
+  jsonPageCodec,
+  parseJsonPage,
+  serializeJsonPage,
+} from '../src/index.ts';
 
-const fixturePath = new URL('./fixtures/todo.dmy.json', import.meta.url);
-const fixture = await Bun.file(fixturePath).text();
-const authorFixture = await Bun.file(new URL('../../core/test/compiler/fixtures/todo.dmy.ts', import.meta.url)).text();
+const fixture = await Bun.file(new URL('./fixtures/todo.dmy.json', import.meta.url)).text();
 
-describe('JSON document codec', () => {
-  test('exposes the format-neutral codec contract', () => {
-    expect(jsonDocumentCodec.id).toBe('json');
-    expect(jsonDocumentCodec.extensions).toEqual(['dmy.json']);
-    expect(jsonDocumentCodec.mediaTypes).toContain('application/vnd.domily+json');
-
-    const registry = createCodecRegistry();
-    registry.register(jsonDocumentCodec);
-    expect(registry.byExtension('.dmy.json')).toBe(jsonDocumentCodec);
-    expect(registry.byExtension('.json')).toBeUndefined();
+describe('JSON PageSpec codec', () => {
+  test('implements only the generic source-codec contract', () => {
+    const registry = createSourceCodecRegistry([jsonPageCodec]);
+    expect(registry.byExtension('.DMY.JSON')).toMatchObject({ id: 'json', version: '1.0.0' });
+    expect(createJsonSourceCodecRegistry().byId('json')).toMatchObject({ id: 'json', version: '1.0.0' });
   });
 
-  test('normalizes the todo fixture to a frozen AST', () => {
-    const result = parseJsonDocument(fixture);
-
+  test('parses generic PageSpec data and allocates JSON pointer node IDs during parse', () => {
+    const result = parseJsonPage(fixture);
     expect(result.ok).toBe(true);
-    if (!result.ok) {
-      return;
-    }
+    if (!result.ok) return;
 
-    expect(result.value.kind).toBe('document');
-    expect(result.value.meta.id).toBe('todos');
-    expect(result.value.derived.canSubmit).toEqual({
-      kind: 'expression',
-      op: 'not',
-      args: [
-        {
-          kind: 'expression',
-          op: 'empty',
-          args: [{ kind: 'reference', path: 'state.newTitle' }],
-        },
-      ],
+    expect(result.value.value).toMatchObject({ schema: 'domily.page/v1', id: 'json-todo' });
+    expect(result.value.payload).toEqual({ kind: 'text', text: fixture });
+    expect(result.value.sourceMap?.nodes['json:/ui/children/0/props/value']).toMatchObject({
+      start: expect.objectContaining({ line: expect.any(Number), column: expect.any(Number) }),
     });
-    expect(Object.isFrozen(result.value)).toBe(true);
-    expect(Object.isFrozen(result.value.view)).toBe(true);
   });
 
-  test('normalizes the JSON fixture to the same AST as the core author compiler', () => {
-    expect(parseJsonDocument(fixture)).toEqual(compileAuthorModule(authorFixture));
-  });
+  test('leaves PageSpec semantics to the shared core normalizer', () => {
+    const parsed = parseJsonPage(fixture);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const registry = createPageRegistry();
+    registry.registerComponentCatalog(nativeHtmlCatalog);
+    registry.registerCapabilityCatalog(todosCapabilities);
 
-  test('round trips a normalized document without changing its AST', () => {
-    const initial = parseJsonDocument(fixture);
-    expect(initial.ok).toBe(true);
-    if (!initial.ok) {
-      return;
+    const normalized = normalizePageSpec(parsed.value.value, { registry });
+    expect(normalized.ok).toBe(true);
+    if (normalized.ok) {
+      expect(normalized.value.ui.children?.[0]?.props?.value).toBe('$$literal-dollar');
     }
+  });
 
-    const serialized = serializeJsonDocument(initial.value);
+  test('round trips generic JSON values without adding AST semantics', () => {
+    const parsed = parseJsonPage(fixture);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const serialized = serializeJsonPage(parsed.value.value);
     expect(serialized.ok).toBe(true);
-    if (!serialized.ok) {
-      return;
-    }
-
-    const reparsed = parseJsonDocument(serialized.value);
-    expect(reparsed).toEqual(initial);
+    if (!serialized.ok || serialized.value.kind !== 'text') return;
+    const reparsed = parseJsonPage(serialized.value.text);
+    expect(reparsed.ok).toBe(true);
+    if (reparsed.ok) expect(reparsed.value.value).toEqual(parsed.value.value);
   });
 
-  test('maps parsed AST nodes back to deterministic JSON source node IDs', () => {
-    const result = parseJsonDocumentWithSourceMap(fixture);
+  test('reports source locations for malformed JSON and rejects non-text payloads', () => {
+    const invalid = parseJsonPage('{\n  "schema":\n}');
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) expect(invalid.issues[0]).toMatchObject({ code: 'json.syntax', location: { line: expect.any(Number) } });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      return;
-    }
-
-    const { document, nodeOrigins, sourceMap } = result.value;
-    expect(sourceMap.codecId).toBe('json');
-    expect(nodeOrigins.get(document)).toEqual(['json:/']);
-    expect(nodeOrigins.get(document.view)).toEqual(['json:/view']);
-
-    const value = document.view.kind === 'element' ? document.view.children[0] : undefined;
-    expect(value?.kind).toBe('element');
-    if (value?.kind !== 'element') {
-      return;
-    }
-
-    const propertyValue = value.props.value;
-    expect(propertyValue).toBeDefined();
-    if (!propertyValue) {
-      return;
-    }
-
-    expect(nodeOrigins.get(propertyValue)).toEqual(['json:/view/children/0/props/value']);
-    const range = sourceMap.nodes['json:/view/children/0/props/value'];
-    const viewOffset = fixture.indexOf('"view"');
-    const expectedOffset = fixture.indexOf('{ "$ref": "state.newTitle" }', viewOffset);
-    expect(range?.start.offset).toBe(expectedOffset);
-    expect(range?.start.line).toBeGreaterThan(0);
-    expect(range?.start.column).toBeGreaterThan(0);
-    expect(range?.end.offset).toBe(expectedOffset + '{ "$ref": "state.newTitle" }'.length);
-  });
-
-  test('keeps source provenance outside the format-neutral parse result', () => {
-    const plain = parseJsonDocument(fixture);
-    const sourceMapped = parseJsonDocumentWithSourceMap(fixture);
-
-    expect(plain.ok).toBe(true);
-    expect(sourceMapped.ok).toBe(true);
-    if (!plain.ok || !sourceMapped.ok) {
-      return;
-    }
-
-    expect(plain.value).toEqual(sourceMapped.value.document);
-    expect('sourceMap' in plain.value).toBe(false);
-  });
-
-  test('reports a line and column for invalid JSON', () => {
-    const result = parseJsonDocument('{\n  "meta":\n}');
-
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
-    }
-
-    expect(result.issues[0]?.code).toBe('json.syntax');
-    expect(result.issues[0]?.location?.line).toBeGreaterThan(0);
-    expect(result.issues[0]?.location?.column).toBeGreaterThan(0);
-  });
-
-  test('reports a line and column when JSON cannot map to the document AST', () => {
-    const result = parseJsonDocument(`{
-  "meta": {
-    "protocol": "domily-next",
-    "version": "0.1",
-    "id": 123
-  },
-  "view": { "component": "div" }
-}`);
-
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
-    }
-
-    expect(result.issues[0]?.code).toBe('json.mapping');
-    expect(result.issues[0]?.location).toEqual({ line: 5, column: 5, offset: 71 });
+    const binary = jsonPageCodec.parse({ kind: 'binary', bytes: new Uint8Array([1]) });
+    expect(binary).toMatchObject({ ok: false, issues: [expect.objectContaining({ code: 'json.payload.kind.invalid' })] });
   });
 });
+
+const todosCapabilities: CapabilityCatalogManifest = {
+  schema: 'domily.capability-catalog/v1',
+  id: '@test/todos',
+  version: '1.0.0',
+  capabilities: [{
+    id: 'todos.save',
+    version: '1.0.0',
+    description: 'Saves a todo.',
+    invocation: { localPage: true, remotePage: true },
+  }],
+};

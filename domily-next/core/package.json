@@ -1,36 +1,54 @@
 {
   "name": "@domily/next",
   "version": "0.0.0",
-  "description": "Core runtime, protocol, and authoring primitives for Domily Next",
+  "description": "PageSpec protocol, registry, source-codec contracts, and native DOM host for Domily Next",
   "type": "module",
   "exports": {
     ".": {
       "types": "./lib/types/index.d.ts",
       "import": "./lib/index.js"
     },
-    "./author": {
-      "types": "./lib/types/author.d.ts",
-      "import": "./lib/author.js"
-    },
     "./codec": {
       "types": "./lib/types/codec.d.ts",
       "import": "./lib/codec.js"
     },
-    "./compiler": {
-      "types": "./lib/types/compiler/index.d.ts",
-      "import": "./lib/compiler.js"
+    "./delivery": {
+      "types": "./lib/types/delivery.d.ts",
+      "import": "./lib/delivery.js"
+    },
+    "./dom": {
+      "types": "./lib/types/dom.d.ts",
+      "import": "./lib/dom.js"
+    },
+    "./business-form": {
+      "types": "./lib/types/business-form.d.ts",
+      "import": "./lib/business-form.js"
+    },
+    "./extensions": {
+      "types": "./lib/types/extensions.d.ts",
+      "import": "./lib/extensions.js"
+    },
+    "./native-html": {
+      "types": "./lib/types/native-html.d.ts",
+      "import": "./lib/native-html.js"
+    },
+    "./pagespec": {
+      "types": "./lib/types/pagespec.d.ts",
+      "import": "./lib/pagespec.js"
+    },
+    "./registry": {
+      "types": "./lib/types/registry.d.ts",
+      "import": "./lib/registry.js"
     }
   },
   "files": ["lib"],
   "sideEffects": false,
   "scripts": {
-    "build": "rm -rf ./lib && bun build ./src/index.ts ./src/author.ts ./src/codec.ts --bundle --outdir ./lib --target browser --format esm && bun build ./src/compiler/index.ts --bundle --outfile ./lib/compiler.js --target node --format esm --external @swc/core && tsc -b ./tsconfig.types.json --force",
+    "build": "rm -rf ./lib && bun build ./src/index.ts ./src/business-form.ts ./src/codec.ts ./src/delivery.ts ./src/dom.ts ./src/extensions.ts ./src/native-html.ts ./src/pagespec.ts ./src/registry.ts --bundle --root ./src --outdir ./lib --target browser --format esm && tsc -b ./tsconfig.types.json --force && pnpm run verify:package",
     "typecheck": "tsc -p ./tsconfig.json",
     "lint": "oxlint --config=../../.oxlintrc.json src test",
-    "test": "bun test ./test"
-  },
-  "dependencies": {
-    "@swc/core": "1.15.47"
+    "test": "bun test ./test",
+    "verify:package": "node --input-type=module -e \"await Promise.all([import('@domily/next'), import('@domily/next/business-form'), import('@domily/next/codec'), import('@domily/next/delivery'), import('@domily/next/dom'), import('@domily/next/extensions'), import('@domily/next/native-html'), import('@domily/next/pagespec'), import('@domily/next/registry')]);\""
   },
   "license": "MIT"
 }

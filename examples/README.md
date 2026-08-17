@@ -4,6 +4,7 @@
 
 | 示例 | 场景 | 启动方式 |
 | --- | --- | --- |
-| [`domily-next-vite-todo`](./domily-next-vite-todo/README.md) | 本地 `.dmy.ts` 文档、可信 capability、表单和列表交互 | `pnpm example:next-todo` |
+| [`domily-next-vite-todo`](./domily-next-vite-todo/README.md) | 本地 `.dmy.ts` PageSpec、原生 HTML、`business.form` 可选预设、可信 capability 与项目组件 | `pnpm example:next-todo` |
+| [`domily-next-vite-profile`](./domily-next-vite-profile/README.md) | 多字段资料表单、原生 HTML、`business.form` 与可信保存 capability；无需项目自定义 renderer | `pnpm example:next-profile` |
 
 后续示例会分别覆盖远程 envelope + IndexedDB 离线缓存，以及自定义受控组件注册表。它们不能改变当前协议或绕过 host validator。

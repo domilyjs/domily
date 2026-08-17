@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 
-import { createJsonCodecRegistry, jsonDocumentCodec } from '../src/index.ts';
+import { createJsonSourceCodecRegistry, jsonPageCodec } from '../src/index.ts';
 
 describe('@domily/next-codec-json', () => {
-  test('owns the JSON codec implementation', () => {
-    expect(jsonDocumentCodec.id).toBe('json');
-    expect(createJsonCodecRegistry().byId('json')).toBe(jsonDocumentCodec);
+  test('owns the JSON source codec implementation', () => {
+    expect(jsonPageCodec.id).toBe('json');
+    expect(createJsonSourceCodecRegistry().byId('json')).toMatchObject({
+      id: 'json',
+      version: '1.0.0',
+    });
   });
 });

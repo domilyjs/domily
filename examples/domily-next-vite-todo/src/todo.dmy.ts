@@ -1,100 +1,67 @@
-import { action, cap, defineDocument, derived, event, ref, state, view } from '@domily/next/author';
+import { definePage } from '@domily/next';
 
-const todoRow = view.checkbox({
-  ariaLabel: '切换待办完成状态',
-  checked: ref.item('todo', 'completed'),
-  label: ref.item('todo', 'title'),
-  onChange: action.run('toggleTodo'),
-});
-
-export default defineDocument({
+/**
+ * This is ordinary TypeScript configuration, not a compiler macro language.
+ * Business data and effects remain in the trusted Host registrations.
+ */
+export default definePage({
+  schema: 'domily.page/v1',
   id: 'vite-todo',
-  state: state({
-    error: null,
-    loading: false,
-    newTitle: '',
-    todos: [],
-  }),
-  derived: {
-    titleIsEmpty: derived.empty(ref.state('newTitle')),
-    hasError: derived.not(derived.empty(ref.state('error'))),
+  requires: {
+    catalogs: ['@domily/native-html@^1', '@domily/next/business-form@^1', '@example/todo-components@^1'],
+    capabilities: ['todos.create@^1', 'todos.toggle@^1'],
+    extensions: ['@domily/next/business-form@^1'],
   },
-  actions: {
-    createTodo: action.if(
-      ref.derived('titleIsEmpty'),
-      [],
-      [
-        action.set('error', null),
-        action.call(cap('todos.create'), {
-          args: { title: ref.state('newTitle') },
-          assign: 'response',
-        }),
-        action.set('todos', ref.var('response.items')),
-        action.set('newTitle', ''),
-      ],
-    ),
-    loadTodos: action.try(
-      [
-        action.set('loading', true),
-        action.call(cap('todos.list'), { assign: 'response' }),
-        action.set('todos', ref.var('response.items')),
-        action.set('error', null),
-      ],
-      {
-        catch: [action.set('error', ref.error('message'))],
-        finally: [action.set('loading', false)],
+  extensions: {
+    '@domily/next/business-form': {
+      drafts: {
+        todoCreate: { initial: { title: '' } },
       },
-    ),
-    setNewTitle: action.set('newTitle', event.value()),
-    toggleTodo: [
-      action.call(cap('todos.toggle'), {
-        args: {
-          completed: event.checked(),
-          id: ref.item('todo', 'id'),
-        },
-        assign: 'response',
-      }),
-      action.set('todos', ref.var('response.items')),
-    ],
+    },
   },
-  lifecycle: {
-    mounted: action.run('loadTodos'),
-  },
-  view: view.page({
-    title: '待办事项',
-    description: '这是由 .dmy.ts 静态编译得到的页面。',
-    testId: 'todo-app',
+  ui: {
+    type: 'html.main',
+    props: { className: 'app-shell' },
     children: [
-      view.form({
-        testId: 'todo-form',
-        onSubmit: action.run('createTodo'),
+      {
+        type: 'html.div',
+        props: { className: 'app-shell__header' },
         children: [
-          view.textField({
-            id: 'new-todo-title',
-            label: '新待办',
-            placeholder: '例如：阅读协议草案',
-            value: ref.state('newTitle'),
-            onInput: action.run('setNewTitle'),
-          }),
-          view.button({
-            label: '新增待办',
-            disabled: ref.derived('titleIsEmpty'),
-            type: 'submit',
-          }),
+          { type: 'html.p', children: [{ type: 'html.text', props: { value: 'DOMILY NEXT' } }] },
+          { type: 'html.p', children: [{ type: 'html.text', props: { value: 'PageSpec + 原生 DOM 的最小待办示例。' } }] },
         ],
-      }),
-      view.alert({
-        when: ref.derived('hasError'),
-        message: ref.state('error'),
-      }),
-      view.list({
-        label: '待办列表',
-        testId: 'todo-list',
-        each: 'todo',
-        in: ref.state('todos'),
-        key: ref.item('todo', 'id'),
-        template: todoRow,
-      }),
+      },
+      {
+        type: 'business.form',
+        props: {
+          className: 'todo-form',
+          fields: [{
+            className: 'todo-form__input',
+            label: '新待办',
+            name: 'title',
+            placeholder: '例如：阅读协议草案',
+            required: true,
+          }],
+          submitLabel: '新增待办',
+        },
+        bind: { value: '$businessForm.todoCreate' },
+        on: {
+          submit: {
+            capability: 'todos.create',
+            args: { title: '$businessForm.todoCreate.title' },
+          },
+        },
+      },
+      {
+        type: 'app.todoList',
+        props: { items: '$todo.items' },
+        on: {
+          toggle: {
+            capability: 'todos.toggle',
+            args: { completed: '$event.completed', id: '$event.id' },
+          },
+        },
+      },
     ],
-  }),
+  },
 });

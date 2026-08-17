@@ -1,120 +1,35 @@
-import {
-  freezeDocument,
-  type ActionNode,
-  type CallActionNode,
-  type Document,
-  type ElementViewNode,
-  type ExpressionNode,
-  type JsonValue,
-  type ObjectNode,
-  type ValueNode,
-  type ViewNode,
-} from '../ast/index.ts';
-
-export { freezeDocument };
+import type { SourceCodec, SourceCodecRegistry } from './types.ts';
 
 export type {
-  ActionNode,
-  CallActionNode,
-  Document,
-  ElementViewNode,
-  ExpressionNode,
-  JsonValue,
-  ObjectNode,
-  ValueNode,
-  ViewNode,
-};
+  ParsedSource,
+  SourceCodec,
+  SourceCodecIssue,
+  SourceCodecRegistry,
+  SourceCodecResult,
+  SourceLocation,
+  SourceMap,
+  SourceNodeId,
+  SourcePayload,
+  SourceRange,
+} from './types.ts';
 
-export interface SourceLocation {
-  line: number;
-  column: number;
-  offset?: number;
+export class SourceCodecRegistryError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'SourceCodecRegistryError';
+  }
 }
 
-export type SourceNodeId = string;
+/** Creates the codec-neutral lookup layer used by delivery and build tooling. */
+export function createSourceCodecRegistry(initial: Iterable<SourceCodec> = []): SourceCodecRegistry {
+  const codecsById = new Map<string, SourceCodec>();
+  const codecsByExtension = new Map<string, SourceCodec>();
+  const codecsByMediaType = new Map<string, SourceCodec>();
 
-export interface SourceRange {
-  start: SourceLocation;
-  end: SourceLocation;
-}
-
-export interface SourceMap {
-  codecId: string;
-  nodes: Record<SourceNodeId, SourceRange>;
-}
-
-/**
- * Read-only provenance sidecar for one parsed document. It is intentionally
- * separate from Document so source positions cannot affect its semantics,
- * hashes, signatures, or serialization.
- */
-export interface NodeOrigins {
-  get(node: object): readonly SourceNodeId[] | undefined;
-  has(node: object): boolean;
-}
-
-export interface SourceMappedDocument {
-  document: Document;
-  sourceMap: SourceMap;
-  nodeOrigins: NodeOrigins;
-}
-
-export interface CodecIssue {
-  code: string;
-  message: string;
-  location?: SourceLocation;
-  path?: string;
-}
-
-export type CodecResult<T> =
-  | { ok: true; value: T; issues: CodecIssue[] }
-  | { ok: false; issues: CodecIssue[] };
-
-/**
- * Experimental boundary between a serialized document format and the normalized
- * protocol AST. Runtime packages depend on this contract, never on a format.
- */
-export interface DocumentCodec<Input = string> {
-  readonly id: string;
-  readonly extensions: readonly string[];
-  readonly mediaTypes: readonly string[];
-  parse(input: Input): CodecResult<Document>;
-  serialize(document: Document): CodecResult<Input>;
-}
-
-export interface DocumentCodecWithSourceMap<
-  Input = string,
-> extends DocumentCodec<Input> {
-  parseWithSourceMap(input: Input): CodecResult<SourceMappedDocument>;
-}
-
-export interface CodecRegistry {
-  register(codec: DocumentCodec): void;
-  byExtension(extension: string): DocumentCodec | undefined;
-  byId(id: string): DocumentCodec | undefined;
-  byMediaType(mediaType: string): DocumentCodec | undefined;
-}
-
-export function createCodecRegistry(): CodecRegistry {
-  const codecsById = new Map<string, DocumentCodec>();
-  const codecsByExtension = new Map<string, DocumentCodec>();
-  const codecsByMediaType = new Map<string, DocumentCodec>();
-
-  return {
-    register(codec) {
-      if (codecsById.has(codec.id)) {
-        throw new Error(
-          `A document codec with id "${codec.id}" is already registered.`,
-        );
-      }
-      codecsById.set(codec.id, codec);
-      for (const extension of codec.extensions) {
-        codecsByExtension.set(normalizeExtension(extension), codec);
-      }
-      for (const mediaType of codec.mediaTypes) {
-        codecsByMediaType.set(mediaType.toLowerCase(), codec);
-      }
-    },
+  const registry: SourceCodecRegistry = {
     byExtension(extension) {
       return codecsByExtension.get(normalizeExtension(extension));
     },
@@ -122,13 +37,85 @@ export function createCodecRegistry(): CodecRegistry {
       return codecsById.get(id);
     },
     byMediaType(mediaType) {
-      return codecsByMediaType.get(mediaType.toLowerCase());
+      return codecsByMediaType.get(normalizeMediaType(mediaType));
+    },
+    register(codec) {
+      assertCodec(codec);
+      if (codecsById.has(codec.id)) {
+        throw duplicate('id', codec.id);
+      }
+      const extensions = codec.extensions.map(normalizeExtension);
+      const mediaTypes = codec.mediaTypes.map(normalizeMediaType);
+      for (const extension of extensions) {
+        if (codecsByExtension.has(extension)) {
+          throw duplicate('extension', extension);
+        }
+      }
+      for (const mediaType of mediaTypes) {
+        if (codecsByMediaType.has(mediaType)) {
+          throw duplicate('media type', mediaType);
+        }
+      }
+      const registered = Object.freeze({
+        extensions: Object.freeze([...extensions]),
+        id: codec.id,
+        mediaTypes: Object.freeze([...mediaTypes]),
+        parse: codec.parse,
+        ...(codec.serialize ? { serialize: codec.serialize } : {}),
+        version: codec.version,
+      }) satisfies SourceCodec;
+      codecsById.set(registered.id, registered);
+      for (const extension of extensions) codecsByExtension.set(extension, registered);
+      for (const mediaType of mediaTypes) codecsByMediaType.set(mediaType, registered);
     },
   };
+
+  for (const codec of initial) registry.register(codec);
+  return registry;
 }
 
-function normalizeExtension(extension: string): string {
-  return extension.startsWith(".")
-    ? extension.slice(1).toLowerCase()
-    : extension.toLowerCase();
+function assertCodec(codec: SourceCodec): void {
+  if (!codec || typeof codec !== 'object') {
+    throw new SourceCodecRegistryError('codec.invalid', 'A source codec must be an object.');
+  }
+  if (typeof codec.id !== 'string' || !/^[a-z][a-z0-9-]*$/.test(codec.id)) {
+    throw new SourceCodecRegistryError('codec.id.invalid', 'A source codec requires a lowercase identifier.');
+  }
+  if (typeof codec.version !== 'string' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(codec.version)) {
+    throw new SourceCodecRegistryError('codec.version.invalid', `Source codec "${codec.id}" requires an exact SemVer version.`);
+  }
+  if (typeof codec.parse !== 'function') {
+    throw new SourceCodecRegistryError('codec.parse.invalid', `Source codec "${codec.id}" requires parse().`);
+  }
+  if (codec.serialize !== undefined && typeof codec.serialize !== 'function') {
+    throw new SourceCodecRegistryError('codec.serialize.invalid', `Source codec "${codec.id}" has an invalid serialize().`);
+  }
+  if (!Array.isArray(codec.extensions) || codec.extensions.length === 0) {
+    throw new SourceCodecRegistryError('codec.extensions.invalid', `Source codec "${codec.id}" requires at least one extension.`);
+  }
+  if (!Array.isArray(codec.mediaTypes) || codec.mediaTypes.length === 0) {
+    throw new SourceCodecRegistryError('codec.media-types.invalid', `Source codec "${codec.id}" requires at least one media type.`);
+  }
+  for (const extension of codec.extensions) normalizeExtension(extension);
+  for (const mediaType of codec.mediaTypes) normalizeMediaType(mediaType);
+}
+
+function normalizeExtension(value: string): string {
+  const normalized = value.startsWith('.') ? value.slice(1) : value;
+  if (!/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/i.test(normalized)) {
+    throw new SourceCodecRegistryError('codec.extension.invalid', `Invalid codec extension "${value}".`);
+  }
+  return normalized.toLowerCase();
+}
+
+function normalizeMediaType(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(normalized)) {
+    throw new SourceCodecRegistryError('codec.media-type.invalid', `Invalid codec media type "${value}".`);
+  }
+  return normalized;
+}
+
+function duplicate(kind: string, value: string): SourceCodecRegistryError {
+  return new SourceCodecRegistryError('codec.duplicate', `A source codec is already registered for ${kind} "${value}".`);
 }

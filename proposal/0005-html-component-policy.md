@@ -1,6 +1,6 @@
 # 0005：通用 HTML 组件映射的白名单与安全边界
 
-- 状态：已确认
+- 状态：部分已由 [0014-pagespec-authoring-model.md](./0014-pagespec-authoring-model.md) 取代
 - 日期：2026-08-12
 - 关联：[0001-schema-driven-ui.md](./0001-schema-driven-ui.md)、[0003-authoring-dsl.md](./0003-authoring-dsl.md)
 
@@ -8,11 +8,11 @@
 
 MVP 采用“默认拒绝、显式注册”的通用 HTML 映射，而不是把浏览器所有标签、属性和 DOM API 透传给可下发文档。每个允许的标签都由注册表声明 props、事件、事件 payload 和值校验器。
 
-文档不能插入原始 HTML、内联 JavaScript、任意 URL 或任意 CSS；复杂/高风险能力必须以专用组件加 capability 形式加入。
+文档不能插入原始 HTML、内联 JavaScript 或任意 URL；复杂/高风险能力必须以专用组件加 capability 形式加入。`className`、`style` 和 CSS 自定义属性的开放策略已由 [0014](./0014-pagespec-authoring-model.md) 重新定义：默认业务 profile 对它们不做协议级白名单限制，来源信任策略由宿主决定。
 
 ## 2. 为什么需要白名单
 
-可下发文档属于不可信输入。`on*` 事件属性、`javascript:` URL、HTML 字符串、`iframe`、随意的 CSS 和外部资源都会跨越“配置”到“可执行内容”的边界。OWASP 建议只将不可信值放入硬编码的安全属性列表，并将 URL 与其他危险上下文单独校验；严格 CSP 是必要的纵深防御，但不能替代输入验证和安全渲染。[OWASP XSS 防护指南](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html) [MDN CSP 指南](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP)
+可下发文档可能来自不同可信度的来源。`on*` 事件属性、`javascript:` URL、HTML 字符串、`iframe` 和外部资源会跨越“配置”到“可执行内容”的边界，必须继续拒绝。`className` 与 CSS declaration 本身是业务展示能力；对于不可信第三方来源，是否额外限制 CSS 由宿主的发布信任策略和 CSP 决定，而不是由 PageSpec 代替业务做决定。OWASP 建议只将不可信值放入硬编码的安全属性列表，并将 URL 与其他危险上下文单独校验；严格 CSP 是必要的纵深防御，但不能替代输入验证和安全渲染。[OWASP XSS 防护指南](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html) [MDN CSP 指南](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP)
 
 ## 3. MVP 允许的标签
 
@@ -30,7 +30,7 @@ MVP 采用“默认拒绝、显式注册”的通用 HTML 映射，而不是把�
 
 ### 标签
 
-`script`、`style`、`link`、`meta`、`base`、`iframe`、`object`、`embed`、`portal`、`template`、`slot`、`svg`、`math`、`audio`、`video`、`canvas`、`webview`、自定义元素，以及所有未注册标签。
+`script`、`<style>`、`link`、`meta`、`base`、`iframe`、`object`、`embed`、`portal`、`template`、`slot`、`svg`、`math`、`audio`、`video`、`canvas`、`webview`、自定义元素，以及所有未注册标签。
 
 ### 属性与 DOM 接口
 
@@ -43,10 +43,9 @@ MVP 采用“默认拒绝、显式注册”的通用 HTML 映射，而不是把�
 
 ### 样式
 
-- 禁止 `style` 字符串、`style` 对象、`css` 字段、`className` 的任意字符串与 CSS 变量写入；
-- MVP 仅允许注册表声明的 `class`、`variant`、`size`、`tone` 等枚举型展示 props；
-- 动态展示状态通过组件属性（如 `hidden`、`disabled`、`aria-*`）表达，不以动态 CSS 表达；
-- 以后若开放受限样式，只允许逐条 CSS property 白名单和值校验，绝不允许 selector、`url()`、`@import` 或自由文本 CSS。
+本节原有的 CSS 白名单策略已由 [0014 的 5.3 节](./0014-pagespec-authoring-model.md#53-classname-与-style-是业务作者的直接能力) 取代。PageSpec 的业务 profile 直接开放 `className`、`style`、CSS variables、任意 CSS property/value 与 CSS declaration 字符串；页面模型不替业务应用决定样式组织方式。
+
+宿主若接收第三方/租户不可信配置，可在其自身信任策略中增加 CSS 限制或 CSP。该限制不得由文档声明或绕过，也不改变本协议对原始 HTML、事件属性和危险 DOM sink 的拒绝。
 
 ## 5. 属性策略
 
@@ -128,7 +127,7 @@ URL 先按标准 URL 解析，再检查协议、源和长度；不能仅用字�
 - 拖放：`SortableList` / `DropZone` 组件 + 最小化拖放 payload；
 - 嵌入内容：`EmbeddedFrame` 组件 + 来源 allowlist、sandbox 和专门权限；
 - SVG、图表、地图、媒体、canvas：独立组件契约，而非开放原生标签；
-- 动态样式：设计令牌和受限 Style API，后续单独 RFC。
+- 动态样式：已由 [0014](./0014-pagespec-authoring-model.md) 开放为 `className` / `style`；不再需要受限 Style API。
 
 ## 9. 运行时防线与测试
 

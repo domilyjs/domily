@@ -1,7 +1,7 @@
 {
   "name": "@domily/next-codec-json",
   "version": "0.0.0",
-  "description": "Experimental JSON codec for Domily Next documents",
+  "description": "Experimental JSON source codec for Domily Next PageSpec documents",
   "type": "module",
   "exports": {
     ".": {
@@ -13,7 +13,7 @@
     "lib"
   ],
   "scripts": {
-    "build": "rm -rf ./lib && bun build ./src/index.ts --bundle --outdir ./lib --target browser --format esm --external @domily/next --external @domily/next/codec && tsc -b ./tsconfig.types.json --force",
+    "build": "rm -rf ./lib && bun build ./src/index.ts --bundle --outdir ./lib --target browser --format esm --external @domily/next/codec --external @domily/next/pagespec && tsc -b ./tsconfig.types.json --force",
     "typecheck": "tsc -p ./tsconfig.json",
     "lint": "oxlint --config=../../.oxlintrc.json src test",
     "test": "bun test ./test"

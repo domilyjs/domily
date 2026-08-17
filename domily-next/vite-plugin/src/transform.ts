@@ -1,28 +1,31 @@
-import type { CodecIssue, Document } from '@domily/next/codec';
-import { compileAuthorModule } from '@domily/next/compiler';
+import { normalizePageSpec } from '@domily/next/pagespec';
+import type { SourceCodec, SourceCodecIssue, SourceCodecRegistry } from '@domily/next/codec';
+import type { PageRegistry } from '@domily/next/registry';
 
 export interface DomilyNextVitePluginOptions {
-  extensions?: readonly string[];
-  validate?: (document: Document) => DomilyViteValidationResult;
-}
-
-export interface DomilyViteValidationResult {
-  issues: readonly CodecIssue[];
-  ok: boolean;
+  /**
+   * Optional locally registered text codecs. The plugin only asks this registry
+   * to parse a file whose suffix matches a codec-declared extension; it never
+   * downloads a codec or gives source documents executable behavior.
+   */
+  readonly codecs?: SourceCodecRegistry;
+  /** `.dmy.ts` is ordinary trusted TypeScript; this list controls JSON fallback modules only. */
+  readonly extensions?: readonly string[];
+  /** Optional build-time PageSpec validation against the local manifest registry. */
+  readonly registry?: PageRegistry;
+  readonly origin?: 'local' | 'remote';
 }
 
 export interface DomilyViteTransformResult {
-  code: string;
-  map: null;
+  readonly code: string;
+  readonly map: null;
 }
 
 export interface DomilyViteConfigPatch {
-  optimizeDeps: {
-    exclude: string[];
-  };
+  readonly optimizeDeps?: { readonly exclude: readonly string[] };
 }
 
-/** The structural subset of Vite's plugin contract used by this adapter. */
+/** The small Vite/Rolldown plugin surface needed by Domily. */
 export interface DomilyVitePlugin {
   config(): DomilyViteConfigPatch;
   enforce: 'pre';
@@ -31,13 +34,12 @@ export interface DomilyVitePlugin {
 }
 
 export interface DomilyViteErrorLocation {
-  column: number;
-  file: string;
-  line: number;
+  readonly column: number;
+  readonly file: string;
+  readonly line: number;
 }
 
-/** A Vite/Rolldown-compatible transform error tied to the original author file. */
-export class DomilyViteCompileError extends Error {
+export class DomilyVitePageError extends Error {
   constructor(
     readonly code: string,
     message: string,
@@ -45,102 +47,183 @@ export class DomilyViteCompileError extends Error {
     readonly loc?: DomilyViteErrorLocation,
   ) {
     super(message);
-    this.name = 'DomilyViteCompileError';
+    this.name = 'DomilyVitePageError';
   }
 }
 
-const DEFAULT_EXTENSIONS = ['.dmy.ts'];
-const DSL_MODULE = '@domily/next/author';
+const defaultExtensions = ['.dmy.json'];
 
 /**
- * Creates a Vite pre-transform plugin that replaces a restricted author module
- * with a JSON-compatible Document AST ES module. It never executes author code.
+ * Validates and converts static JSON PageSpec modules to an import-free ES
+ * module. `.dmy.ts` deliberately stays a normal Vite TypeScript module: local
+ * authors use `definePage()` as a type helper, not a second macro language.
  */
 export function domilyNext(options: DomilyNextVitePluginOptions = {}): DomilyVitePlugin {
   const normalized = normalizeOptions(options);
   return {
     config() {
-      // Vite's dependency scanner sees source before this pre-transform. The
-      // author namespace is compile-time only and must never be resolved or
-      // optimized as a browser dependency.
-      return { optimizeDeps: { exclude: [DSL_MODULE] } };
+      return {};
     },
     enforce: 'pre',
     name: 'vite:domily-next',
     transform(code, id) {
-      if (!matchesAuthorModule(id, normalized.extensions)) return null;
-      return transformDomilyAuthorModule(code, id, normalized);
+      const codec = codecForFile(id, normalized.codecs);
+      if (codec) {
+        return transformSourceCodecModule(code, id, codec, normalized);
+      }
+      if (!matchesJsonPage(id, normalized.extensions)) return null;
+      return transformJsonModule(code, id, normalized);
     },
   };
 }
 
 export default domilyNext;
 
-/** Compiles one matching author module and exposes the generated AST module for tests/tooling. */
-export function transformDomilyAuthorModule(
+export function transformDomilyJsonModule(
   source: string,
   id: string,
   options: DomilyNextVitePluginOptions = {},
 ): DomilyViteTransformResult {
   const normalized = normalizeOptions(options);
-  const compiled = compileAuthorModule(source);
-  if (!compiled.ok) {
-    throw issueError(id, compiled.issues[0] ?? fallbackIssue('dsl.compile', 'Unable to compile the Domily author module.'));
-  }
-
-  const validation = normalized.validate?.(compiled.value);
-  if (validation && !validation.ok) {
-    throw issueError(id, validation.issues[0] ?? fallbackIssue('dsl.validation', 'Document failed Vite host validation.'));
-  }
-  return { code: documentModuleCode(compiled.value, stripQuery(id)), map: null };
+  return transformJsonModule(source, id, normalized);
 }
 
-function normalizeOptions(options: DomilyNextVitePluginOptions): Required<Pick<DomilyNextVitePluginOptions, 'extensions'>> & DomilyNextVitePluginOptions {
-  const extensions = [...(options.extensions ?? DEFAULT_EXTENSIONS)];
+function transformJsonModule(
+  source: string,
+  id: string,
+  options: NormalizedDomilyNextVitePluginOptions,
+): DomilyViteTransformResult {
+  let page: unknown;
+  try {
+    page = JSON.parse(source);
+  } catch (error) {
+    throw jsonError(id, source, error);
+  }
+  return transformPageModule(page, id, options);
+}
+
+function transformSourceCodecModule(
+  source: string,
+  id: string,
+  codec: SourceCodec,
+  options: NormalizedDomilyNextVitePluginOptions,
+): DomilyViteTransformResult {
+  let result: ReturnType<SourceCodec['parse']>;
+  try {
+    result = codec.parse({ kind: 'text', text: source });
+  } catch (error) {
+    throw new DomilyVitePageError(
+      'codec.parse.failed',
+      `[domily-next] Source codec "${codec.id}" threw while parsing this page.`,
+      stripQuery(id),
+      undefined,
+    );
+  }
+
+  if (!result.ok) {
+    throw codecError(id, codec, result.issues[0]);
+  }
+  return transformPageModule(result.value.value, id, options);
+}
+
+function transformPageModule(
+  page: unknown,
+  id: string,
+  options: NormalizedDomilyNextVitePluginOptions,
+): DomilyViteTransformResult {
+  if (options.registry) {
+    const result = normalizePageSpec(page, {
+      origin: options.origin,
+      registry: options.registry.snapshot(),
+    });
+    if (!result.ok) {
+      const issue = result.issues[0];
+      throw new DomilyVitePageError(
+        issue?.code ?? 'pagespec.invalid',
+        `[domily-next] ${issue?.message ?? 'PageSpec validation failed.'}`,
+        stripQuery(id),
+      );
+    }
+  }
+
+  const serialized = JSON.stringify(page)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+  return {
+    code: [
+      `// Generated from ${JSON.stringify(stripQuery(id))} by @domily/next-vite-plugin.`,
+      `const page = ${serialized};`,
+      'export { page };',
+      'export default page;',
+      '',
+    ].join('\n'),
+    map: null,
+  };
+}
+
+type NormalizedDomilyNextVitePluginOptions = DomilyNextVitePluginOptions & {
+  readonly extensions: readonly string[];
+};
+
+function normalizeOptions(options: DomilyNextVitePluginOptions): NormalizedDomilyNextVitePluginOptions {
+  const extensions = [...(options.extensions ?? defaultExtensions)];
   if (extensions.length === 0 || extensions.some((extension) => !extension.startsWith('.') || extension.includes('?'))) {
-    throw new DomilyViteCompileError(
+    throw new DomilyVitePageError(
       'vite.options.extensions',
-      'Domily Vite extensions must be non-empty dot-prefixed file extensions without query strings.',
+      'Domily Vite JSON extensions must be non-empty dot-prefixed file extensions without query strings.',
       '<vite-config>',
     );
   }
   return { ...options, extensions };
 }
 
-function matchesAuthorModule(id: string, extensions: readonly string[]): boolean {
+function codecForFile(id: string, codecs: SourceCodecRegistry | undefined): SourceCodec | undefined {
+  if (!codecs) return undefined;
+  const filename = stripQuery(id).split('/').at(-1) ?? '';
+  for (let index = filename.indexOf('.'); index !== -1; index = filename.indexOf('.', index + 1)) {
+    const codec = codecs.byExtension(filename.slice(index + 1));
+    if (codec) return codec;
+  }
+  return undefined;
+}
+
+function matchesJsonPage(id: string, extensions: readonly string[]): boolean {
   const filename = stripQuery(id);
   return extensions.some((extension) => filename.endsWith(extension));
 }
 
-function documentModuleCode(document: Document, id: string): string {
-  const serialized = JSON.stringify(document)
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029');
-  return [
-    `// Generated from ${JSON.stringify(id)} by @domily/next-vite-plugin.`,
-    `const document = ${serialized};`,
-    'export { document };',
-    'export default document;',
-    '',
-  ].join('\n');
+function jsonError(id: string, source: string, error: unknown): DomilyVitePageError {
+  const message = error instanceof Error ? error.message : 'Invalid JSON.';
+  const position = /position (\d+)/.exec(message)?.[1];
+  const unexpectedToken = /Unexpected token ['"](.+?)['"]/.exec(message)?.[1];
+  const offset = position === undefined
+    ? Math.max(0, unexpectedToken === undefined ? 0 : source.indexOf(unexpectedToken))
+    : Number(position);
+  const before = source.slice(0, offset);
+  return new DomilyVitePageError(
+    'json.syntax',
+    `[domily-next] ${message}`,
+    stripQuery(id),
+    {
+      column: before.length - before.lastIndexOf('\n') - 1,
+      file: stripQuery(id),
+      line: before.split('\n').length,
+    },
+  );
 }
 
-function issueError(id: string, issue: CodecIssue): DomilyViteCompileError {
-  const file = stripQuery(id);
-  const loc = issue.location
-    ? {
-        column: Math.max(0, issue.location.column - 1),
-        file,
-        line: issue.location.line,
-      }
-    : undefined;
-  return new DomilyViteCompileError(issue.code, `[domily-next] ${issue.message}`, file, loc);
-}
-
-function fallbackIssue(code: string, message: string): CodecIssue {
-  return { code, message };
+function codecError(id: string, codec: SourceCodec, issue: SourceCodecIssue | undefined): DomilyVitePageError {
+  const location = issue?.location;
+  return new DomilyVitePageError(
+    issue?.code ?? 'codec.parse.invalid',
+    `[domily-next] ${issue?.message ?? `Source codec "${codec.id}" rejected this page.`}`,
+    stripQuery(id),
+    location
+      ? { column: location.column, file: stripQuery(id), line: location.line }
+      : undefined,
+  );
 }
 
 function stripQuery(id: string): string {
