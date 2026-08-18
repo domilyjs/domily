@@ -2,14 +2,20 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "composite": false,
-    "lib": ["DOM", "ESNext"],
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
     "noEmit": true,
-    "types": ["bun"]
+    "types": [
+      "bun"
+    ]
   },
   "include": [
-    "domily-next/**/test/**/*.test.ts",
     "packages/**/*.test.ts",
-    "examples/**/*.test.ts"
   ],
-  "exclude": ["**/lib/**", "node_modules"]
+  "exclude": [
+    "**/lib/**",
+    "node_modules"
+  ]
 }

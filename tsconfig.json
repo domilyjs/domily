@@ -11,17 +11,6 @@
     "allowJs": true,
     // Bundler mode
     "moduleResolution": "bundler",
-    "paths": {
-      "@domily/next-codec-json": [
-        "./domily-next/codec-json/src/index.ts"
-      ],
-      "@domily/next-codec-toon": [
-        "./domily-next/codec-toon/src/index.ts"
-      ],
-      "@domily/next-vite-plugin": [
-        "./domily-next/vite-plugin/src/index.ts"
-      ]
-    },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
@@ -37,8 +26,5 @@
     "types": [
       "bun"
     ]
-  },
-  "files": [
-    "./types/tsconfig.d.ts"
-  ]
+  }
 }
