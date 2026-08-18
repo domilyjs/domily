@@ -1,6 +1,6 @@
 # 0017：Source codec、规范化与交付边界
 
-- 状态：M3 已实现；M4 envelope / memory cache 已实现，持久化 store adapter 待实现
+- 状态：M3–M4、M6a 与 experimental TOON M6b 已实现；持久化 store adapter 待实现
 - 日期：2026-08-15
 - 前置：[0015-minimal-core-and-extension-model.md](./0015-minimal-core-and-extension-model.md)、[0016-catalog-capability-contract.md](./0016-catalog-capability-contract.md)
 - 关联：[0002-document-codecs.md](./0002-document-codecs.md)、[0004-document-delivery.md](./0004-document-delivery.md)
@@ -27,7 +27,8 @@ JSON、YAML、TOML、TOON、BSON 与本地 TypeScript 对象只是在表达同�
 这意味着：
 
 - `@domily/next` 只定义 codec 接口、通用数据模型、source map 和 normalizer；
-- `@domily/next-codec-json` 是 MVP 唯一必选实现；YAML/TOML/TOON/BSON 均为可选 codec 包；
+- `@domily/next-codec-json` 是 MVP 唯一必选实现；experimental `@domily/next-codec-toon` 已作为可选包实现；
+  YAML/TOML/BSON 仍为未来可选 codec 包；
 - 本地 `.dmy.ts` 也必须先得到 JSON-compatible PageSpec 值，再进入同一个 normalizer；它不拥有特殊运行时能力；
 - 远程交付保存并校验原始 payload，不能只保存编译后的 IR 或重新序列化的近似值。
 
@@ -81,13 +82,19 @@ SourceMap 的 node ID 在**parse 阶段**分配，并由 codec 输出与通用�
 
 规则：
 
-- 每个 scalar、array、object、key/value pair 至少有一个稳定 `SourceNodeId`；
-- codec 无法提供精确字节范围时，至少提供路径和文档级 origin，不能伪造精确位置；
+- 能暴露结构来源的 codec 应为 scalar、array、object、key/value pair 分配稳定 `SourceNodeId`；
+- codec 无法提供精确范围时，至少提供文档级 origin，不能伪造路径或字段级位置；
 - node ID 的稳定性只要求在同一次 parse 结果和同一 payload hash 内成立，不承诺跨任意文本编辑永久不变。
 
 当前 `SourceMap` v1 只有 codec node range；normalizer 的 `PageSpecIssue.path` 还是逻辑路径，二者尚未有
 codec-neutral 的 `path → SourceNodeId` 映射。因此 delivery 返回二者而不伪造 JSON Pointer 诊断。默认值、
 synthetic origin 和精确语义诊断回链属于后续 SourceMap contract 扩展。
+
+实施补充（M6a/M6b）：text SourceMap 使用 1-based line/column 与 0-based UTF-16 offset；binary SourceMap 使用
+byte offset，并可将没有文本位置的 line/column 置为 0。range 为 `[start, end)`。Delivery 会拒绝 codec ID 与
+已选 codec 不一致、结束早于开始或越过原始 payload 的 SourceMap；它仍不会伪造语义诊断的精确来源映射。
+JSON 的 root node 为 `json:`、子节点为 `json:/...`；experimental TOON 当前只提供 `toon:` 文档根节点，直到
+官方 parser 能提供可信 token/AST span 或另有经审计的 SourceMap adapter。
 
 ## 4. 各格式的承诺与边界
 
@@ -190,7 +197,10 @@ PageHost 也执行相同的 owner 检查，不能以同名普通 scope 冒充 ex
 @domily/next-codec-json
   └── JSON parse/stringify + source map
 
-未来可选：@domily/next-codec-yaml / -toml / -toon / -bson
+@domily/next-codec-toon (experimental)
+  └── 固定官方 TOON decoder + document-level source map
+
+未来可选：@domily/next-codec-yaml / -toml / -bson
 ```
 
 具体 codec 是独立安装/导入的实现；应用若只使用 JSON，不会因支持 YAML、TOON 或 BSON 带入额外解析器。对业务开发者而言，`@domily/next` 仍可以提供一键注册 JSON 的便捷入口；这只是发布体验，不使 core 对 `codec-json` 产生反向依赖。
@@ -201,7 +211,7 @@ PageHost 也执行相同的 owner 检查，不能以同名普通 scope 冒充 ex
 2. 在 core 建立 `SourceCodec`、通用 source map、`PageSpec` normalizer、envelope v2 与 cache 抽象；
 3. 重写 JSON codec，使其只输出 `JsonValue + SourceMap + original payload`；
 4. 用 JSON fixture 建立 PageSpec/manifest/extension/diagnostic 回归测试；
-5. 再分别引入 YAML、TOON、TOML、BSON codec，每一个都复用同一 fixture；
+5. 引入经过审计的 experimental TOON codec（已完成）；YAML、TOML、BSON 各自另行准入并复用同一 fixture；
 6. 已迁移 delivery cache 的 memory/store contract，使原 payload 与依赖 fingerprint 成为一等数据；后续补持久化 adapter。
 
 ## 9. 验收标准

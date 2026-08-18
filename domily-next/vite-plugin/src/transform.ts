@@ -1,5 +1,10 @@
 import { normalizePageSpec } from '@domily/next/pagespec';
-import type { SourceCodec, SourceCodecIssue, SourceCodecRegistry } from '@domily/next/codec';
+import {
+  cloneSourceJson,
+  type SourceCodec,
+  type SourceCodecIssue,
+  type SourceCodecRegistry,
+} from '@domily/next/codec';
 import type { PageRegistry } from '@domily/next/registry';
 
 export interface DomilyNextVitePluginOptions {
@@ -67,6 +72,7 @@ export function domilyNext(options: DomilyNextVitePluginOptions = {}): DomilyVit
     enforce: 'pre',
     name: 'vite:domily-next',
     transform(code, id) {
+      if (isLocalTypeScriptPage(id)) return null;
       const codec = codecForFile(id, normalized.codecs);
       if (codec) {
         return transformSourceCodecModule(code, id, codec, normalized);
@@ -111,7 +117,7 @@ function transformSourceCodecModule(
   let result: ReturnType<SourceCodec['parse']>;
   try {
     result = codec.parse({ kind: 'text', text: source });
-  } catch (error) {
+  } catch {
     throw new DomilyVitePageError(
       'codec.parse.failed',
       `[domily-next] Source codec "${codec.id}" threw while parsing this page.`,
@@ -131,8 +137,18 @@ function transformPageModule(
   id: string,
   options: NormalizedDomilyNextVitePluginOptions,
 ): DomilyViteTransformResult {
+  let sourceValue;
+  try {
+    sourceValue = cloneSourceJson(page, 'PageSpec source codec output');
+  } catch {
+    throw new DomilyVitePageError(
+      'vite.page.serialize.invalid',
+      '[domily-next] PageSpec source codec output must be JSON-compatible.',
+      stripQuery(id),
+    );
+  }
   if (options.registry) {
-    const result = normalizePageSpec(page, {
+    const result = normalizePageSpec(sourceValue, {
       origin: options.origin,
       registry: options.registry.snapshot(),
     });
@@ -146,7 +162,21 @@ function transformPageModule(
     }
   }
 
-  const serialized = JSON.stringify(page)
+  let serialized: string;
+  try {
+    const encoded = JSON.stringify(sourceValue);
+    if (typeof encoded !== 'string') {
+      throw new Error('PageSpec source codec output is not JSON-compatible.');
+    }
+    serialized = encoded;
+  } catch {
+    throw new DomilyVitePageError(
+      'vite.page.serialize.invalid',
+      '[domily-next] PageSpec source codec output must be JSON-compatible.',
+      stripQuery(id),
+    );
+  }
+  const escaped = serialized
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
     .replace(/\u2028/g, '\\u2028')
@@ -154,7 +184,7 @@ function transformPageModule(
   return {
     code: [
       `// Generated from ${JSON.stringify(stripQuery(id))} by @domily/next-vite-plugin.`,
-      `const page = ${serialized};`,
+      `const page = JSON.parse(${JSON.stringify(escaped)});`,
       'export { page };',
       'export default page;',
       '',
@@ -189,6 +219,10 @@ function codecForFile(id: string, codecs: SourceCodecRegistry | undefined): Sour
   return undefined;
 }
 
+function isLocalTypeScriptPage(id: string): boolean {
+  return stripQuery(id).endsWith('.dmy.ts');
+}
+
 function matchesJsonPage(id: string, extensions: readonly string[]): boolean {
   const filename = stripQuery(id);
   return extensions.some((extension) => filename.endsWith(extension));
@@ -201,17 +235,37 @@ function jsonError(id: string, source: string, error: unknown): DomilyVitePageEr
   const offset = position === undefined
     ? Math.max(0, unexpectedToken === undefined ? 0 : source.indexOf(unexpectedToken))
     : Number(position);
-  const before = source.slice(0, offset);
+  const location = viteTextLocationAt(source, offset);
   return new DomilyVitePageError(
     'json.syntax',
     `[domily-next] ${message}`,
     stripQuery(id),
     {
-      column: before.length - before.lastIndexOf('\n') - 1,
+      column: location.column,
       file: stripQuery(id),
-      line: before.split('\n').length,
+      line: location.line,
     },
   );
+}
+
+function viteTextLocationAt(source: string, targetOffset: number): Pick<DomilyViteErrorLocation, 'column' | 'line'> {
+  let column = 0;
+  let line = 1;
+  const end = Math.min(Math.max(0, targetOffset), source.length);
+  for (let offset = 0; offset < end; offset += 1) {
+    const character = source[offset];
+    if (character === '\r') {
+      if (source[offset + 1] === '\n' && offset + 1 < end) offset += 1;
+      column = 0;
+      line += 1;
+    } else if (character === '\n') {
+      column = 0;
+      line += 1;
+    } else {
+      column += 1;
+    }
+  }
+  return { column, line };
 }
 
 function codecError(id: string, codec: SourceCodec, issue: SourceCodecIssue | undefined): DomilyVitePageError {
@@ -221,7 +275,7 @@ function codecError(id: string, codec: SourceCodec, issue: SourceCodecIssue | un
     `[domily-next] ${issue?.message ?? `Source codec "${codec.id}" rejected this page.`}`,
     stripQuery(id),
     location
-      ? { column: location.column, file: stripQuery(id), line: location.line }
+      ? { column: Math.max(0, location.column - 1), file: stripQuery(id), line: location.line }
       : undefined,
   );
 }

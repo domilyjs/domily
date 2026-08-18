@@ -18,7 +18,7 @@ import {
   type CapabilityCatalogManifest,
   type ExtensionManifest,
 } from '../../src/registry/index.ts';
-import type { SourceCodec } from '../../src/codec/index.ts';
+import type { SourceCodec, SourceMap } from '../../src/codec/index.ts';
 
 const initialTime = Date.parse('2026-08-15T00:00:00.000Z');
 
@@ -50,6 +50,24 @@ function codec(counter: { value: number }, binaryPage = remotePage()): SourceCod
         ? JSON.parse(payload.text) as JsonValue
         : binaryPage as unknown as JsonValue;
       return { ok: true, value: { payload, value }, issues: [] };
+    },
+  };
+}
+
+function codecWithSourceMap(counter: { value: number }, sourceMap: unknown): SourceCodec {
+  return {
+    ...codec(counter),
+    parse(payload) {
+      counter.value += 1;
+      return {
+        ok: true,
+        issues: [],
+        value: {
+          payload,
+          sourceMap: sourceMap as SourceMap,
+          value: payload.kind === 'text' ? JSON.parse(payload.text) as JsonValue : remotePage() as unknown as JsonValue,
+        },
+      };
     },
   };
 }
@@ -175,6 +193,114 @@ describe('PageDeliveryClient', () => {
       now: () => initialTime,
       registry,
     }).accept(restricted)).rejects.toMatchObject({ code: 'delivery.pagespec.invalid' });
+  });
+
+  test('defensively validates codec SourceMap identity, ranges, locations, and node ids', async () => {
+    const counter = { value: 0 };
+    const source = await envelope(textPayload());
+    const common = {
+      allowUnsigned: true,
+      cacheNamespace: 'test',
+      now: () => initialTime,
+      registry: createRegistry(),
+    };
+
+    const wrongCodec = codecWithSourceMap(counter, {
+      codecId: 'other-codec',
+      nodes: {},
+    });
+    await expect(createPageDeliveryClient({ ...common, codecs: sourceRegistry(wrongCodec) }).accept(source))
+      .rejects.toMatchObject({ code: 'delivery.codec.source-map.codec.mismatch' });
+
+    const outsidePayload = codecWithSourceMap(counter, {
+      codecId: 'fixture',
+      nodes: {
+        'fixture:/': {
+          start: { column: 1, line: 1, offset: 0 },
+          end: { column: 1, line: 1, offset: 1_000_000 },
+        },
+      },
+    });
+    await expect(createPageDeliveryClient({ ...common, codecs: sourceRegistry(outsidePayload) }).accept(source))
+      .rejects.toMatchObject({ code: 'delivery.codec.source-map.offset.invalid' });
+
+    const invertedRange = codecWithSourceMap(counter, {
+      codecId: 'fixture',
+      nodes: {
+        'fixture:/': {
+          start: { column: 8, line: 1, offset: 8 },
+          end: { column: 4, line: 1, offset: 4 },
+        },
+      },
+    });
+    await expect(createPageDeliveryClient({ ...common, codecs: sourceRegistry(invertedRange) }).accept(source))
+      .rejects.toMatchObject({ code: 'delivery.codec.source-map.range.invalid' });
+
+    const zeroBasedTextLocation = codecWithSourceMap(counter, {
+      codecId: 'fixture',
+      nodes: {
+        'fixture:/': {
+          start: { column: 0, line: 0, offset: 0 },
+          end: { column: 1, line: 1, offset: 1 },
+        },
+      },
+    });
+    await expect(createPageDeliveryClient({ ...common, codecs: sourceRegistry(zeroBasedTextLocation) }).accept(source))
+      .rejects.toMatchObject({ code: 'delivery.codec.source-map.location.invalid' });
+
+    const binarySource = await envelope({ kind: 'binary', bytes: new Uint8Array([1, 2, 3]) });
+    const binaryMap = codecWithSourceMap(counter, {
+      codecId: 'fixture',
+      nodes: {
+        'fixture:/': {
+          start: { column: 0, line: 0, offset: 0 },
+          end: { column: 0, line: 0, offset: 3 },
+        },
+      },
+    });
+    await expect(createPageDeliveryClient({ ...common, codecs: sourceRegistry(binaryMap) }).accept(binarySource))
+      .resolves.toMatchObject({ page: { id: 'remote-page' } });
+
+    const prototypeNamedNodes = Object.create(null) as Record<string, SourceMap['nodes'][string]>;
+    Object.defineProperty(prototypeNamedNodes, '__proto__', {
+      configurable: true,
+      enumerable: true,
+      value: {
+        start: { column: 1, line: 1, offset: 0 },
+        end: { column: 2, line: 1, offset: 1 },
+      },
+      writable: true,
+    });
+    const prototypeNamedMap = codecWithSourceMap(counter, {
+      codecId: 'fixture',
+      nodes: prototypeNamedNodes,
+    });
+    const delivered = await createPageDeliveryClient({ ...common, codecs: sourceRegistry(prototypeNamedMap) }).accept(source);
+    expect(Object.getPrototypeOf(delivered.parsed.sourceMap?.nodes)).toBeNull();
+    expect(Object.hasOwn(delivered.parsed.sourceMap?.nodes ?? {}, '__proto__')).toBe(true);
+
+    const malformedSourceMap = codecWithSourceMap(counter, null);
+    await expect(createPageDeliveryClient({ ...common, codecs: sourceRegistry(malformedSourceMap) }).accept(source))
+      .rejects.toMatchObject({ code: 'delivery.codec.source-map.invalid' });
+
+    let accessorRead = false;
+    const accessorRange = {
+      end: { column: 2, line: 1, offset: 1 },
+    };
+    Object.defineProperty(accessorRange, 'start', {
+      enumerable: true,
+      get() {
+        accessorRead = true;
+        return { column: 1, line: 1, offset: 0 };
+      },
+    });
+    const accessorMap = codecWithSourceMap(counter, {
+      codecId: 'fixture',
+      nodes: { 'fixture:/': accessorRange },
+    });
+    await expect(createPageDeliveryClient({ ...common, codecs: sourceRegistry(accessorMap) }).accept(source))
+      .rejects.toMatchObject({ code: 'delivery.codec.source-map.invalid' });
+    expect(accessorRead).toBe(false);
   });
 
   test('re-parses cached raw payload, falls back to bounded stale cache, and keeps cache namespaces isolated', async () => {

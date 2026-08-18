@@ -11,7 +11,7 @@ import {
   serializeJsonPage,
 } from '../src/index.ts';
 
-const fixture = await Bun.file(new URL('./fixtures/todo.dmy.json', import.meta.url)).text();
+const fixture = await Bun.file(new URL('../../codec-fixtures/page-v1/todo.json', import.meta.url)).text();
 
 describe('JSON PageSpec codec', () => {
   test('implements only the generic source-codec contract', () => {
@@ -27,6 +27,8 @@ describe('JSON PageSpec codec', () => {
 
     expect(result.value.value).toMatchObject({ schema: 'domily.page/v1', id: 'json-todo' });
     expect(result.value.payload).toEqual({ kind: 'text', text: fixture });
+    expect(result.value.sourceMap?.codecId).toBe('json');
+    expect(result.value.sourceMap?.nodes['json:']?.end.offset).toBe(fixture.trimEnd().length);
     expect(result.value.sourceMap?.nodes['json:/ui/children/0/props/value']).toMatchObject({
       start: expect.objectContaining({ line: expect.any(Number), column: expect.any(Number) }),
     });
@@ -57,6 +59,42 @@ describe('JSON PageSpec codec', () => {
     const reparsed = parseJsonPage(serialized.value.text);
     expect(reparsed.ok).toBe(true);
     if (reparsed.ok) expect(reparsed.value.value).toEqual(parsed.value.value);
+  });
+
+  test('preserves generic JSON keys for the later PageSpec semantic boundary', () => {
+    const source = '{"__proto__":{"polluted":true},"constructor":"data","prototype":false}';
+    const parsed = parseJsonPage(source);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+
+    const value = parsed.value.value as Record<string, unknown>;
+    expect(Object.hasOwn(value, '__proto__')).toBe(true);
+    expect(value.__proto__).toEqual({ polluted: true });
+    const serialized = serializeJsonPage(parsed.value.value);
+    expect(serialized.ok).toBe(true);
+    if (!serialized.ok || serialized.value.kind !== 'text') return;
+    const reparsed = JSON.parse(serialized.value.text) as Record<string, unknown>;
+    expect(Object.hasOwn(reparsed, '__proto__')).toBe(true);
+    expect(reparsed.__proto__).toEqual({ polluted: true });
+  });
+
+  test('assigns a distinct SourceMap node id to the root and an empty JSON key', () => {
+    const parsed = parseJsonPage('{"":1}');
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+
+    const nodes = parsed.value.sourceMap?.nodes;
+    expect(nodes?.['json:']).toMatchObject({ start: { offset: 0 }, end: { offset: 6 } });
+    expect(nodes?.['json:/']).toMatchObject({ start: { offset: 4 }, end: { offset: 5 } });
+  });
+
+  test('tracks CR, LF, and CRLF text line locations', () => {
+    for (const source of ['{\r"a":1}', '{\n"a":1}', '{\r\n"a":1}']) {
+      const parsed = parseJsonPage(source);
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) continue;
+      expect(parsed.value.sourceMap?.nodes['json:/a']?.start).toMatchObject({ column: 5, line: 2 });
+    }
   });
 
   test('reports source locations for malformed JSON and rejects non-text payloads', () => {

@@ -15,6 +15,9 @@
       "@domily/next-codec-json": [
         "./domily-next/codec-json/src/index.ts"
       ],
+      "@domily/next-codec-toon": [
+        "./domily-next/codec-toon/src/index.ts"
+      ],
       "@domily/next-vite-plugin": [
         "./domily-next/vite-plugin/src/index.ts"
       ]

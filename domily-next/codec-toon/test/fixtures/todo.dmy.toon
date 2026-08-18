@@ -1,0 +1,14 @@
+schema: domily.page/v1
+id: json-todo
+requires:
+  catalogs[1]: @domily/native-html@^1
+  capabilities[1]: todos.save@^1
+ui:
+  type: html.div
+  props:
+    className: todo-page
+    style:
+      display: grid
+      gap: 12px
+  children[1]{type,props{value}}:
+    html.text,$$literal-dollar

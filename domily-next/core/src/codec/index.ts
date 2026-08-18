@@ -1,5 +1,7 @@
 import type { SourceCodec, SourceCodecRegistry } from './types.ts';
 
+export { cloneSourceJson, SourceCodecValueError } from './value.ts';
+
 export type {
   ParsedSource,
   SourceCodec,

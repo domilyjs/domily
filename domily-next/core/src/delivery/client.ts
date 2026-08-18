@@ -1,3 +1,7 @@
+import {
+  cloneSourceJson,
+  SourceCodecValueError,
+} from '../codec/value.ts';
 import type {
   ParsedSource,
   SourceCodec,
@@ -9,10 +13,7 @@ import type {
   PageExtensionRuntimeAvailabilityEntry,
 } from '../extensions/types.ts';
 import { normalizePageSpec } from '../pagespec/normalize.ts';
-import type {
-  JsonValue,
-  NormalizedPageSpec,
-} from '../pagespec/types.ts';
+import type { JsonValue, NormalizedPageSpec } from '../pagespec/types.ts';
 import type {
   PageRegistry,
   PageRegistrySnapshot,
@@ -389,7 +390,7 @@ async function parseEnvelope(codec: SourceCodec, envelope: PageEnvelope): Promis
       result.issues,
     );
   }
-  return cloneParsedSource(result.value, envelope.payload);
+  return cloneParsedSource(result.value, envelope.payload, codec.id);
 }
 
 function resolveRegistry(
@@ -545,82 +546,181 @@ function canonicalJson(value: unknown): string {
   return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`;
 }
 
-function cloneParsedSource(source: ParsedSource, payload: PageEnvelope['payload']): ParsedSource {
+function cloneParsedSource(
+  source: unknown,
+  payload: PageEnvelope['payload'],
+  codecId: string,
+): ParsedSource {
+  const parsed = requirePlainRecord(source, 'Codec parsed source', 'delivery.codec.parsed.invalid');
+  const sourceMapValue = optionalOwnDataValue(parsed, 'sourceMap', 'Codec parsed source', 'delivery.codec.parsed.invalid');
+  const sourceMap = sourceMapValue === undefined
+    ? undefined
+    : cloneSourceMap(sourceMapValue, codecId, payload);
+  const value = requiredOwnDataValue(parsed, 'value', 'Codec parsed source', 'delivery.codec.parsed.invalid');
   return Object.freeze({
     payload: cloneSourcePayload(payload),
-    ...(source.sourceMap ? { sourceMap: cloneSourceMap(source.sourceMap) } : {}),
-    value: cloneJsonValue(source.value, 'Codec parsed value'),
+    ...(sourceMap ? { sourceMap } : {}),
+    value: cloneJsonValue(value, 'Codec parsed value', false),
   });
 }
 
-function cloneSourceMap(source: SourceMap): SourceMap {
-  if (!source || typeof source.codecId !== 'string' || !source.nodes || typeof source.nodes !== 'object') {
-    throw new PageDeliveryError('delivery.codec.source-map.invalid', 'Codec returned an invalid SourceMap.');
+function cloneSourceMap(source: unknown, expectedCodecId: string, payload: PageEnvelope['payload']): SourceMap {
+  const sourceMap = requirePlainRecord(source, 'Codec SourceMap', 'delivery.codec.source-map.invalid');
+  const codecId = requiredOwnDataValue(sourceMap, 'codecId', 'Codec SourceMap', 'delivery.codec.source-map.invalid');
+  const nodesSource = requiredOwnDataValue(sourceMap, 'nodes', 'Codec SourceMap', 'delivery.codec.source-map.invalid');
+  if (typeof codecId !== 'string') {
+    throw new PageDeliveryError('delivery.codec.source-map.invalid', 'Codec SourceMap requires a string codecId.');
   }
-  const nodes: Record<string, SourceMap['nodes'][string]> = {};
-  for (const [nodeId, range] of Object.entries(source.nodes)) {
-    nodes[nodeId] = Object.freeze({
-      end: cloneSourceLocation(range.end, nodeId),
-      start: cloneSourceLocation(range.start, nodeId),
+  if (codecId !== expectedCodecId) {
+    throw new PageDeliveryError(
+      'delivery.codec.source-map.codec.mismatch',
+      `Codec SourceMap belongs to "${codecId}", not "${expectedCodecId}".`,
+    );
+  }
+  const sourceNodes = requirePlainRecord(nodesSource, 'Codec SourceMap nodes', 'delivery.codec.source-map.invalid');
+  const maximumOffset = payload.kind === 'text' ? payload.text.length : payload.bytes.length;
+  const nodes = Object.create(null) as Record<string, SourceMap['nodes'][string]>;
+  for (const nodeId of Object.getOwnPropertyNames(sourceNodes)) {
+    if (!nodeId) {
+      throw new PageDeliveryError('delivery.codec.source-map.node.invalid', 'Codec SourceMap node ids must be non-empty strings.');
+    }
+    const range = requiredOwnDataValue(
+      sourceNodes,
+      nodeId,
+      `Codec SourceMap node "${nodeId}"`,
+      'delivery.codec.source-map.invalid',
+    );
+    if (!range || typeof range !== 'object') {
+      throw new PageDeliveryError('delivery.codec.source-map.invalid', `Codec SourceMap node "${nodeId}" has an invalid range.`);
+    }
+    const sourceRange = requirePlainRecord(range, `Codec SourceMap node "${nodeId}" range`, 'delivery.codec.source-map.invalid');
+    const start = cloneSourceLocation(
+      requiredOwnDataValue(sourceRange, 'start', `Codec SourceMap node "${nodeId}" range`, 'delivery.codec.source-map.invalid'),
+      nodeId,
+      payload.kind,
+    );
+    const end = cloneSourceLocation(
+      requiredOwnDataValue(sourceRange, 'end', `Codec SourceMap node "${nodeId}" range`, 'delivery.codec.source-map.invalid'),
+      nodeId,
+      payload.kind,
+    );
+    if (start.offset > end.offset) {
+      throw new PageDeliveryError('delivery.codec.source-map.range.invalid', `Codec SourceMap node "${nodeId}" ends before it starts.`);
+    }
+    if (end.offset > maximumOffset) {
+      throw new PageDeliveryError(
+        'delivery.codec.source-map.offset.invalid',
+        `Codec SourceMap node "${nodeId}" points outside the raw payload.`,
+      );
+    }
+    Object.defineProperty(nodes, nodeId, {
+      configurable: false,
+      enumerable: true,
+      value: Object.freeze({ end, start }),
+      writable: false,
     });
   }
-  return Object.freeze({ codecId: source.codecId, nodes: Object.freeze(nodes) });
+  return Object.freeze({ codecId, nodes: Object.freeze(nodes) });
 }
 
-function cloneSourceLocation(value: unknown, nodeId: string): SourceMap['nodes'][string]['start'] {
-  if (!value || typeof value !== 'object') {
-    throw new PageDeliveryError('delivery.codec.source-map.invalid', `Codec SourceMap node "${nodeId}" has no location.`);
-  }
-  const source = value as Record<string, unknown>;
+function cloneSourceLocation(
+  value: unknown,
+  nodeId: string,
+  payloadKind: PageEnvelope['payload']['kind'],
+): SourceMap['nodes'][string]['start'] {
+  const source = requirePlainRecord(value, `Codec SourceMap node "${nodeId}" location`, 'delivery.codec.source-map.invalid');
+  const location: Record<string, number> = {};
   for (const name of ['column', 'line', 'offset']) {
-    if (!Number.isSafeInteger(source[name]) || (source[name] as number) < 0) {
+    const item = requiredOwnDataValue(
+      source,
+      name,
+      `Codec SourceMap node "${nodeId}" location`,
+      'delivery.codec.source-map.invalid',
+    );
+    if (typeof item !== 'number' || !Number.isSafeInteger(item) || item < 0) {
       throw new PageDeliveryError('delivery.codec.source-map.invalid', `Codec SourceMap node "${nodeId}" has an invalid ${name}.`);
     }
+    location[name] = item;
   }
-  return Object.freeze({ column: source.column as number, line: source.line as number, offset: source.offset as number });
+  if (payloadKind === 'text' && (location.line === 0 || location.column === 0)) {
+    throw new PageDeliveryError(
+      'delivery.codec.source-map.location.invalid',
+      `Codec SourceMap text node "${nodeId}" must use 1-based line and column values.`,
+    );
+  }
+  return Object.freeze({ column: location.column!, line: location.line!, offset: location.offset! });
 }
 
-function cloneJsonValue(value: unknown, label: string, ancestors = new WeakSet<object>()): JsonValue {
-  if (value === null || typeof value === 'boolean' || typeof value === 'string') return value;
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new PageDeliveryError('delivery.json.invalid', `${label} contains a non-finite number.`);
-    return value;
+function requirePlainRecord(value: unknown, label: string, code: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new PageDeliveryError(code, `${label} must be a plain object.`);
   }
-  if (!value || typeof value !== 'object') {
-    throw new PageDeliveryError('delivery.json.invalid', `${label} must be JSON-compatible.`);
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new PageDeliveryError(code, `${label} must be a plain object.`);
   }
-  if (ancestors.has(value)) throw new PageDeliveryError('delivery.json.circular', `${label} contains a circular value.`);
-  ancestors.add(value);
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    throw new PageDeliveryError(code, `${label} cannot use symbol keys.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function optionalOwnDataValue(
+  source: Record<string, unknown>,
+  key: string,
+  label: string,
+  code: string,
+): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(source, key);
+  if (!descriptor) return undefined;
+  if (!descriptor.enumerable || !('value' in descriptor)) {
+    throw new PageDeliveryError(code, `${label}.${key} must be an enumerable data field.`);
+  }
+  return descriptor.value;
+}
+
+function requiredOwnDataValue(
+  source: Record<string, unknown>,
+  key: string,
+  label: string,
+  code: string,
+): unknown {
+  const value = optionalOwnDataValue(source, key, label, code);
+  if (value === undefined && !Object.hasOwn(source, key)) {
+    throw new PageDeliveryError(code, `${label}.${key} is required.`);
+  }
+  return value;
+}
+
+function cloneJsonValue(value: unknown, label: string, rejectUnsafeKeys = true): JsonValue {
   try {
-    if (Array.isArray(value)) {
-      if (Object.getOwnPropertyNames(value).some((name) => name !== 'length' && !/^\d+$/.test(name))) {
-        throw new PageDeliveryError('delivery.json.invalid', `${label} contains a non-index array property.`);
-      }
-      return value.map((item, index) => {
-        if (!Object.hasOwn(value, index)) throw new PageDeliveryError('delivery.json.invalid', `${label} contains a sparse array.`);
-        return cloneJsonValue(item, label, ancestors);
-      });
+    const clone = cloneSourceJson(value, label);
+    if (rejectUnsafeKeys) rejectProtocolUnsafeKeys(clone, label, '');
+    return clone;
+  } catch (error) {
+    if (error instanceof SourceCodecValueError) {
+      throw new PageDeliveryError(
+        error.code === 'codec.value.json.circular' ? 'delivery.json.circular' : 'delivery.json.invalid',
+        error.message,
+        error,
+      );
     }
-    const prototype = Object.getPrototypeOf(value);
-    if (prototype !== Object.prototype && prototype !== null) {
-      throw new PageDeliveryError('delivery.json.invalid', `${label} must use plain objects.`);
+    throw error;
+  }
+}
+
+function rejectProtocolUnsafeKeys(value: JsonValue, label: string, path: string): void {
+  if (value === null || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => rejectProtocolUnsafeKeys(item, label, `${path}[${index}]`));
+    return;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = path ? `${path}.${key}` : key;
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      throw new PageDeliveryError('delivery.json.invalid', `${label} contains unsafe field "${childPath}".`);
     }
-    const output: Record<string, JsonValue> = {};
-    for (const key of Object.getOwnPropertyNames(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor?.enumerable || !('value' in descriptor) || ['__proto__', 'constructor', 'prototype'].includes(key)) {
-        throw new PageDeliveryError('delivery.json.invalid', `${label} contains an unsafe field.`);
-      }
-      Object.defineProperty(output, key, {
-        configurable: true,
-        enumerable: true,
-        value: cloneJsonValue(descriptor.value, label, ancestors),
-        writable: true,
-      });
-    }
-    return output;
-  } finally {
-    ancestors.delete(value);
+    rejectProtocolUnsafeKeys(child, label, childPath);
   }
 }
 

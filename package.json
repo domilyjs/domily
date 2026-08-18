@@ -7,7 +7,7 @@
     "build:dr": "pnpm --filter @domily/router run build",
     "build:vp": "pnpm --filter vite-plugin-domily run build",
     "build:domily": "pnpm --filter domily run build",
-    "build:next": "pnpm --filter @domily/next run build && pnpm --filter @domily/next-codec-json run build && pnpm --filter @domily/next-vite-plugin run build",
+    "build:next": "pnpm --filter @domily/next run build && pnpm --filter @domily/next-codec-json run build && pnpm --filter @domily/next-codec-toon run build && pnpm --filter @domily/next-vite-plugin run build",
     "build:examples": "pnpm run build:next && pnpm --filter @domily/example-next-vite-todo run build && pnpm --filter @domily/example-next-vite-profile run build",
     "build": "bun lint:all && bun build:rc && bun build:dr && bun build:vp && bun build:domily",
     "typecheck:test": "tsc -p ./tsconfig.test.json",

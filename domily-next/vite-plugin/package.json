@@ -13,7 +13,7 @@
     "lib"
   ],
   "scripts": {
-    "build": "rm -rf ./lib && bun build ./src/index.ts --bundle --outdir ./lib --target node --format esm --external @domily/next/pagespec --external @domily/next/registry && tsc -b ./tsconfig.types.json --force",
+    "build": "rm -rf ./lib && bun build ./src/index.ts --bundle --outdir ./lib --target node --format esm --external @domily/next/codec --external @domily/next/pagespec --external @domily/next/registry && tsc -b ./tsconfig.types.json --force",
     "typecheck": "tsc -p ./tsconfig.json",
     "lint": "oxlint --config=../../.oxlintrc.json src test",
     "test": "bun test ./test"

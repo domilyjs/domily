@@ -22,10 +22,11 @@
 | [0014-pagespec-authoring-model.md](./0014-pagespec-authoring-model.md) | 部分被 0015 取代 | PageSpec UI 语法、原始 HTML 与开放样式；业务页面语义已下沉为预设 |
 | [0015-minimal-core-and-extension-model.md](./0015-minimal-core-and-extension-model.md) | M1–M2 已实现 | 克制的基础核心、Catalog 与业务可选预设 / extension 模型 |
 | [0016-catalog-capability-contract.md](./0016-catalog-capability-contract.md) | M1–M2 已实现 | 本地 Catalog、capability、extension 的版本、契约、AI 上下文与动态化安全边界 |
-| [0017-source-codec-and-delivery-boundary.md](./0017-source-codec-and-delivery-boundary.md) | M3–M4 核心已实现 | 多格式 source codec、parse 阶段 source map、原始 payload 与安全交付/缓存边界 |
-| [0018-pagespec-migration-and-mvp-plan.md](./0018-pagespec-migration-and-mvp-plan.md) | M1–M5 已实现，M6 待实现 | PageSpec 重构、原生 DOM、codec、远程 delivery 与生态阶段门槛 |
+| [0017-source-codec-and-delivery-boundary.md](./0017-source-codec-and-delivery-boundary.md) | M3–M4、M6a 与 experimental TOON M6b 已实现 | 多格式 source codec、parse 阶段 source map、原始 payload 与安全交付/缓存边界 |
+| [0018-pagespec-migration-and-mvp-plan.md](./0018-pagespec-migration-and-mvp-plan.md) | M1–M6b 已实现，TOON 仍 experimental | PageSpec 重构、原生 DOM、codec、远程 delivery 与生态阶段门槛 |
 | [0019-native-dom-host-mvp.md](./0019-native-dom-host-mvp.md) | M2 已实现 | PageHost、trusted renderer、scope/binding、native HTML 与 lifecycle 契约 |
 | [0020-trusted-extension-runtime-and-preset-admission.md](./0020-trusted-extension-runtime-and-preset-admission.md) | M5 已实现 | 本地可信 extension runtime、远程可用性与业务预设准入门槛 |
+| [0021-codec-conformance-and-toon-admission.md](./0021-codec-conformance-and-toon-admission.md) | M6a/M6b 已实现，TOON 仍 experimental | 跨 codec 基准、通用 Vite 文本入口与 TOON 的安全准入 |
 
 ## 约定
 

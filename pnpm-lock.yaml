@@ -6,6 +6,7 @@ settings:
 
 overrides:
   monaco-editor>dompurify: 3.4.13
+  nanoid: 3.3.18
 
 importers:
 
@@ -30,6 +31,16 @@ importers:
         specifier: workspace:^
         version: link:../core
 
+  domily-next/codec-toon:
+    dependencies:
+      '@toon-format/toon':
+        specifier: 4.1.1
+        version: 4.1.1
+    devDependencies:
+      '@domily/next':
+        specifier: workspace:^
+        version: link:../core
+
   domily-next/core: {}
 
   domily-next/vite-plugin:
@@ -41,7 +52,7 @@ importers:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@26.2.0)(less@4.9.0)(sass@1.102.0)
 
-  examples/domily-next-vite-todo:
+  examples/domily-next-vite-profile:
     dependencies:
       '@domily/next':
         specifier: workspace:^
@@ -54,7 +65,7 @@ importers:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@26.2.0)(less@4.9.0)(sass@1.102.0)
 
-  examples/domily-next-vite-profile:
+  examples/domily-next-vite-todo:
     dependencies:
       '@domily/next':
         specifier: workspace:^
@@ -593,6 +604,9 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@toon-format/toon@4.1.1':
+    resolution: {integrity: sha512-SGCkS7IjVpwRmGPgnY8ENKpAf0EdAnZDOQkvFW0d2cgOpdn9FEFl7sTgryESyypXrWr0YajHGpwsAUX4zw9ZvA==}
+
   '@tybys/wasm-util@0.10.3':
     resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
 
@@ -1062,8 +1076,8 @@ packages:
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
-  nanoid@3.3.17:
-    resolution: {integrity: sha512-xQLf0A3HOMlgHq0n247/LRuAOYmB7dXJ/DvAxGvsSBij45XtBSmQycu+F8ODbHwns/XyFZagyL1+J0Offw1E0g==}
+  nanoid@3.3.18:
+    resolution: {integrity: sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
@@ -1580,6 +1594,8 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
+  '@toon-format/toon@4.1.1': {}
+
   '@tybys/wasm-util@0.10.3':
     dependencies:
       tslib: 2.8.1
@@ -1950,7 +1966,7 @@ snapshots:
   ms@2.1.3:
     optional: true
 
-  nanoid@3.3.17: {}
+  nanoid@3.3.18: {}
 
   needle@2.9.1:
     dependencies:
@@ -2046,7 +2062,7 @@ snapshots:
 
   postcss@8.5.26:
     dependencies:
-      nanoid: 3.3.17
+      nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
 

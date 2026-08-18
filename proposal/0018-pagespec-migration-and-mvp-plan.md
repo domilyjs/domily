@@ -1,6 +1,6 @@
 # 0018：PageSpec 重构与 MVP 实施路线
 
-- 状态：M1–M5 已实现；M6 待实现
+- 状态：M1–M6b 已实现；TOON codec 保持 experimental
 - 日期：2026-08-15
 - 前置：[0013-page-spec-product-reset.md](./0013-page-spec-product-reset.md)、[0015-minimal-core-and-extension-model.md](./0015-minimal-core-and-extension-model.md)、[0016-catalog-capability-contract.md](./0016-catalog-capability-contract.md)、[0017-source-codec-and-delivery-boundary.md](./0017-source-codec-and-delivery-boundary.md)
 
@@ -34,7 +34,8 @@ domily-next/
     dom/           # PageHost、scope、trusted renderer registry、DOM tree renderer
     native-html/   # 官方 html.* manifest 与本地 trusted DOM implementations
   codec-json/      # JSON text ↔ generic value + JSON Pointer SourceMap
-  vite-plugin/     # .dmy.json 静态模块与可选 build-time normalizer
+  codec-toon/      # experimental TOON text ↔ generic value + document SourceMap
+  vite-plugin/     # 注入 codec 的 .dmy.* 静态模块与可选 build-time normalizer
 ```
 
 `@domily/next` 的根入口提供 PageSpec、registry、codec 和 DOM host 的易用导出；精确的
@@ -65,7 +66,7 @@ tree-shakable 子路径是 `/pagespec`、`/registry`、`/codec`、`/dom`、`/nat
 ### M3：JSON 与 Vite 作者体验
 
 - `@domily/next-codec-json` 只 parse/serialize generic JSON，并在 parse 阶段分配
-  `json:/...` SourceMap node ID；不再识别 `$ref`、`op`、`kind` 或动作节点；
+  `json:`（root）或 `json:/...`（子节点）SourceMap node ID；不再识别 `$ref`、`op`、`kind` 或动作节点；
 - `.dmy.ts` 是普通受信任 TypeScript：`definePage()` 只提供类型帮助，不创建宏语言或 compiler；
 - Vite plugin 处理 `.dmy.json` 为 import-free PageSpec module，并可选调用同一个
   `normalizePageSpec()` 做构建期诊断；它不会执行或编译一套 PageSpec 专用 JavaScript。
@@ -103,8 +104,17 @@ extension provider。`Resource/List/$item` 局部 scope、自动加载和异步�
 
 ### M6：第二批 codec 与生态 adapter
 
-先用共享 fixture 验证 YAML、TOON、TOML、BSON；随后才试验 React/Vue adapter。adapter 必须消费
-相同的 PageSpec、registry、capability 和诊断，不能创造第二种作者语言。
+M6a 已实现：codec-neutral Vite 文本入口、跨 codec canonical fixture 与 Delivery SourceMap 身份/范围校验。
+它证明第二种文本 codec 不需要修改 core、normalizer 或 delivery。
+
+M6b 已实现经过依赖审计、版本固定的 experimental TOON codec。它是独立的
+`@domily/next-codec-toon` 包：应用显式注册它，core 与 Vite plugin 不静态依赖 parser；TOON source 仍只产生
+通用值，随后走同一个 normalizer、registry 和 Delivery exact codec/version 边界。其官方规范仍是 Working Draft，
+并且当前只有 document-level SourceMap，所以不能移除 experimental 标签。
+
+YAML、TOML、BSON 各自仍须验证数据类型/二进制边界；随后才试验 React/Vue adapter。adapter 必须消费相同的
+PageSpec、registry、capability 和诊断，不能创造第二种作者语言。详见
+[0021](./0021-codec-conformance-and-toon-admission.md)。
 
 ## 5. 验收与风险
 
@@ -112,5 +122,5 @@ extension provider。`Resource/List/$item` 局部 scope、自动加载和异步�
 校验、事件 payload JSON 化、DOM sink 防御、生命周期失败清理、JSON SourceMap、Vite JSON 诊断、
 以及 Todo 业务示例。
 
-有意延后的是持久化 storage adapter、Resource/List 等其他按需预设与第二批 codec/adapter；它们必须继续
-使用新的 PageSpec 原 payload 契约，不能用旧 AST cache 或执行 runtime 伪装兼容。
+有意延后的是持久化 storage adapter、Resource/List 等其他按需预设、YAML/TOML/BSON codec 与 React/Vue adapter；
+它们必须继续使用新的 PageSpec 原 payload 契约，不能用旧 AST cache 或执行 runtime 伪装兼容。

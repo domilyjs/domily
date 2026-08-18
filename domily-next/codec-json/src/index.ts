@@ -1,4 +1,5 @@
 import {
+  cloneSourceJson,
   createSourceCodecRegistry,
   type ParsedSource,
   type SourceCodec,
@@ -37,7 +38,7 @@ export function parseJsonPage(input: string): SourceCodecResult<ParsedSource> {
     return { ok: false, issues: [syntaxIssue(input, error)] };
   }
   try {
-    const value = cloneJsonValue(raw, 'JSON payload');
+    const value = cloneSourceJson(raw, 'JSON payload');
     return {
       ok: true,
       value: {
@@ -57,7 +58,7 @@ export function serializeJsonPage(value: JsonValue): SourceCodecResult<SourcePay
   try {
     return {
       ok: true,
-      value: { kind: 'text', text: JSON.stringify(cloneJsonValue(value, 'JSON value'), null, 2) },
+      value: { kind: 'text', text: JSON.stringify(cloneSourceJson(value, 'JSON value'), null, 2) },
       issues: [],
     };
   } catch (error) {
@@ -77,7 +78,12 @@ class JsonSourceMapParser {
 
   constructor(private readonly input: string) {
     for (let index = 0; index < input.length; index += 1) {
-      if (input[index] === '\n') this.lineStarts.push(index + 1);
+      if (input[index] === '\r') {
+        if (input[index + 1] === '\n') index += 1;
+        this.lineStarts.push(index + 1);
+      } else if (input[index] === '\n') {
+        this.lineStarts.push(index + 1);
+      }
     }
   }
 
@@ -202,44 +208,6 @@ class JsonSourceMapParser {
   }
 }
 
-function cloneJsonValue(value: unknown, label: string, ancestors = new WeakSet<object>()): JsonValue {
-  if (value === null || typeof value === 'boolean' || typeof value === 'string') return value;
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error(`${label} contains a non-finite number.`);
-    return value;
-  }
-  if (!value || typeof value !== 'object') throw new Error(`${label} must be JSON-compatible.`);
-  if (ancestors.has(value)) throw new Error(`${label} contains a circular value.`);
-  ancestors.add(value);
-  try {
-    if (Array.isArray(value)) {
-      if (Object.getOwnPropertyNames(value).some((name) => name !== 'length' && !/^\d+$/.test(name))) {
-        throw new Error(`${label} contains a non-index array property.`);
-      }
-      return value.map((item, index) => {
-        if (!Object.hasOwn(value, index)) throw new Error(`${label} contains a sparse array.`);
-        return cloneJsonValue(item, label, ancestors);
-      });
-    }
-    const prototype = Object.getPrototypeOf(value);
-    if (prototype !== Object.prototype && prototype !== null) throw new Error(`${label} must use plain objects.`);
-    const output: Record<string, JsonValue> = {};
-    for (const key of Object.getOwnPropertyNames(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor?.enumerable || !('value' in descriptor)) throw new Error(`${label} cannot use accessors or hidden properties.`);
-      Object.defineProperty(output, key, {
-        configurable: true,
-        enumerable: true,
-        value: cloneJsonValue(descriptor.value, label, ancestors),
-        writable: true,
-      });
-    }
-    return output;
-  } finally {
-    ancestors.delete(value);
-  }
-}
-
 function syntaxIssue(input: string, error: unknown): SourceCodecIssue {
   const message = error instanceof Error ? error.message : 'Invalid JSON.';
   const offset = Number(/position (\d+)/.exec(message)?.[1] ?? 0);
@@ -261,7 +229,7 @@ function appendJsonPointer(pointer: string, segment: string | number): string {
 }
 
 function sourceNodeId(pointer: string): string {
-  return `json:${pointer || '/'}`;
+  return `json:${pointer}`;
 }
 
 function failure(code: string, message: string): SourceCodecResult<never> {

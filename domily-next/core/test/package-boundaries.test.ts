@@ -18,6 +18,7 @@ const publicSourceFiles = [
   '../src/codec.ts',
   '../src/codec/index.ts',
   '../src/codec/types.ts',
+  '../src/codec/value.ts',
   '../src/delivery.ts',
   '../src/delivery/client.ts',
   '../src/delivery/envelope.ts',
