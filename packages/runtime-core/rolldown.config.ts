@@ -20,7 +20,7 @@ export default defineConfig([
       {
         dir: "lib",
         format: "cjs",
-        entryFileNames: "[name].cjs.js",
+        entryFileNames: "[name].cjs",
         minify: true,
       },
     ],

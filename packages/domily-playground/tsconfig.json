@@ -7,6 +7,7 @@
     "module": "preserve",
     "moduleResolution": "bundler",
     "target": "ESNext",
+    "noEmit": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "types": [

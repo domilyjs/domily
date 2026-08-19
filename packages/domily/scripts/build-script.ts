@@ -14,7 +14,7 @@ const config = [
   {
     format: "cjs" as const,
     naming: {
-      entry: "[name].cjs.[ext]",
+      entry: "[name].cjs",
     },
   },
 ];

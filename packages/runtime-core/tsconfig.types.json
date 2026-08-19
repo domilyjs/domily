@@ -25,7 +25,11 @@
     "emitDeclarationOnly": true,
     "rootDir": "./src",
   },
+  "include": [
+    "./src/**/*.ts"
+  ],
   "exclude": [
+    "lib",
     "scripts",
     "rolldown.config.ts",
     "test"

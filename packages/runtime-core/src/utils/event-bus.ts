@@ -54,5 +54,6 @@ export class EventBus {
 
 export const EVENTS = {
   APP_MOUNTED: "app-mounted",
+  APP_DESTROYED: "app-destroyed",
   __INTERNAL_UPDATE: "__internal_update",
 };

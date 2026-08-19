@@ -22,6 +22,7 @@ export interface DOMilyRouterHelper {
   back: DomilyRouterBase["back"];
   forward: DomilyRouterBase["forward"];
   go: DomilyRouterBase["go"];
+  destroy: DomilyRouterBase["destroy"];
   routes: DomilyRouterBase["routes"];
   currentRoute: DomilyRouterBase["currentRoute"];
 }
@@ -44,6 +45,7 @@ function injectBaseHelperToPlugin(
     "back",
     "forward",
     "go",
+    "destroy",
     "routes",
     "currentRoute",
   ] as const;

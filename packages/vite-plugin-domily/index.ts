@@ -18,8 +18,9 @@ export default function domily(options?: VitePluginDomilyOptions) {
   const plugin: Plugin = {
     name: "vite:domily",
     async transform(code, id) {
-      if (sfcExt.some((e) => id.endsWith(e))) {
-        const filename = id.split("/").at(-1);
+      const resourceId = id.replace(/[?#].*$/, "");
+      if (sfcExt.some((e) => resourceId.endsWith(e))) {
+        const filename = resourceId.split("/").at(-1);
         if (!filename) return;
 
         const name = sfcExt.reduce(
@@ -41,7 +42,7 @@ export default function domily(options?: VitePluginDomilyOptions) {
               };
             },
           },
-          id,
+          resourceId,
         );
       }
     },

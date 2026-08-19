@@ -1,12 +1,12 @@
 import { DomilyAppDefault, PROVIDER_KEY } from "../../config";
-import { $el, camelToKebab, parseAttribute, replaceDOM } from "../../utils/dom";
-import { DOMilyChild, DOMilyMountableRender } from "../render";
+import { $el, camelToKebab, parseAttribute } from "../../utils/dom";
+import type { DOMilyChild, DOMilyMountableRender } from "../render";
 import { domilyChildToDOMilyMountableRender } from "../render/shared/parse";
 
 import { EventBus, EVENTS } from "../../utils/event-bus";
 import { isFunction } from "../../utils/is";
 import { handleWithFunType } from "../reactive/handle-effect";
-import { DOMilyComponent, parseComponent } from "../component";
+import { parseComponent, type DOMilyComponent } from "../component";
 import { type WithFuncType } from "../reactive";
 
 export interface DOMilyObjectPlugin<Options = {}> extends Record<string, any> {
@@ -102,6 +102,7 @@ export default class DomilyApp<
   }
 
   destroy() {
+    EventBus.emit(EVENTS.APP_DESTROYED, { namespace: this.namespace });
     DomilyAppInstances.delete(this.namespace);
   }
 
@@ -140,6 +141,9 @@ export default class DomilyApp<
           }
         }
         connectedCallback() {
+          if (this.mountable) {
+            return;
+          }
           const attrs = Object.fromEntries(
             Array.from(this.attributes).map((e) => [
               e.name,
@@ -162,9 +166,14 @@ export default class DomilyApp<
           this.mountable.mount(container);
         }
         disconnectedCallback() {
-          this.mountable?.unmount();
+          const mountable = this.mountable;
+          this.mountable = null;
+          mountable?.unmount();
         }
         attributeChangedCallback() {
+          if (!this.isConnected) {
+            return;
+          }
           const attrs = Object.fromEntries(
             Array.from(this.attributes).map((e) => [
               e.name,
@@ -178,14 +187,13 @@ export default class DomilyApp<
             },
             component
           );
-          if (this.mountable?.schema?.__dom && nextMountable) {
-            this.mountable.schema.__dom = replaceDOM(
-              this.mountable.schema.__dom,
-              nextMountable.schema.render()
-            );
-            if (isFunction(this.mountable.schema.updated)) {
-              this.mountable.schema.updated(this.mountable.schema.__dom);
-            }
+          if (nextMountable) {
+            const previousMountable = this.mountable;
+            this.mountable = nextMountable;
+            previousMountable?.unmount();
+            const container =
+              useShadowDOM && this.shadowRoot ? this.shadowRoot : this;
+            nextMountable.mount(container);
           }
         }
       }
@@ -213,10 +221,10 @@ export function createApp<
         return null;
       }
       comp.mount(parent || appInstance.el);
-      EventBus.emit(
-        EVENTS.APP_MOUNTED,
-        $el<HTMLElement>(parent || appInstance.el)
-      );
+      EventBus.emit(EVENTS.APP_MOUNTED, {
+        namespace: appInstance.namespace,
+        root: $el<HTMLElement>(parent || appInstance.el),
+      });
       return () => {
         comp.unmount();
       };
@@ -265,7 +273,7 @@ export function provide<T, K = InjectionKey<T> | string | number>(
 }
 
 export function inject<T>(
-  key: InjectionKey<T> | string,
+  key: InjectionKey<T> | string | number,
   defaultValue?: WithFuncType<T>,
   namespace?: string | symbol
 ): T | undefined {
@@ -284,11 +292,10 @@ export function inject<T>(
     );
     return dv;
   }
-  const data = providers.get(key);
-  if (!data) {
+  if (!providers.has(key)) {
     console.warn(`[Domily warn] Provider with key ${String(key)} not found.`);
     return dv;
   }
 
-  return data;
+  return providers.get(key);
 }

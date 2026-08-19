@@ -46,17 +46,19 @@ export default class DomilyPageSchema<
 
   constructor(schema: IDomilyPageSchema<PageMeta, Props>) {
     this.name = schema.name;
-    this.namespace = schema.namespace || Symbol("DomilyAppNamespace");
+    this.namespace = schema.namespace ?? Symbol("DomilyAppNamespace");
     this.path = schema.path;
     this.alias = schema.alias;
     this.component = schema.component;
     this.redirect = schema.redirect;
     this.meta = schema.meta;
     this.props = schema.props;
-    this.children = schema.children?.map((e) => {
-      e.namespace = e.namespace ?? this.namespace;
-      return new DomilyPageSchema<unknown>(e);
-    });
+    this.children = schema.children?.map((child) =>
+      new DomilyPageSchema<unknown>({
+        ...child,
+        namespace: child.namespace ?? this.namespace,
+      })
+    );
   }
 
   static create<PageMeta = {}, Props extends Record<string, any> = {}>(
@@ -80,8 +82,7 @@ export default class DomilyPageSchema<
           },
           this.props
         ),
-        component,
-        true
+        component
       );
       if (!comp) {
         return null;

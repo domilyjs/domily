@@ -2,6 +2,8 @@
   "compilerOptions": {
     // Environment setup & latest features
     "lib": [
+      "DOM",
+      "DOM.Iterable",
       "ESNext"
     ],
     "target": "ESNext",
@@ -26,5 +28,11 @@
     "types": [
       "bun"
     ]
-  }
+  },
+  "exclude": [
+    "**/lib/**",
+    "**/dist/**",
+    "node_modules",
+    "packages/domily-playground"
+  ]
 }
