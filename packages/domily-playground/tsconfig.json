@@ -4,9 +4,12 @@
     "skipLibCheck": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "module": "ESNext",
+    "module": "preserve",
     "moduleResolution": "bundler",
     "target": "ESNext",
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
     "types": [
       "node",
       "vite-plugin-domily"
@@ -16,10 +19,7 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "preserveValueImports": false,
-    "importsNotUsedAsValues": "remove",
     "verbatimModuleSyntax": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"

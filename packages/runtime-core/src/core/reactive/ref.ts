@@ -24,6 +24,34 @@ export function isShallowRef<T = any>(value: any): value is Ref<T> {
   );
 }
 
+export function createPropertyRef<T>(
+  get: () => T,
+  set: (value: T) => void
+): Ref<T> {
+  const propertyRef = ((...args: [T?]) => {
+    if (args.length === 0) {
+      return get();
+    }
+    set(args[0] as T);
+  }) as Ref<T>;
+
+  Reflect.defineProperty(propertyRef, "value", {
+    get,
+    set,
+  });
+  Reflect.defineProperty(propertyRef, INTERNAL_REF_KEY, {
+    configurable: false,
+    writable: false,
+    value: INTERNAL_REF_FLAG,
+  });
+  Reflect.defineProperty(propertyRef, INTERNAL_RAW_KEY, {
+    configurable: false,
+    get,
+  });
+
+  return propertyRef;
+}
+
 export default function ref<T>(value: T): Ref<T> {
   if (isRef<T>(value)) {
     return value;
@@ -51,7 +79,10 @@ export default function ref<T>(value: T): Ref<T> {
   });
 
   Reflect.defineProperty(signalValue, INTERNAL_RAW_KEY, {
-    value,
+    configurable: false,
+    get() {
+      return signalValue();
+    },
   });
 
   return signalValue as Ref<T>;
@@ -82,7 +113,10 @@ export function shallowRef<T>(value: T): Ref<T> {
   });
 
   Reflect.defineProperty(signalValue, INTERNAL_RAW_KEY, {
-    value,
+    configurable: false,
+    get() {
+      return signalValue();
+    },
   });
   return signalValue as Ref<T>;
 }

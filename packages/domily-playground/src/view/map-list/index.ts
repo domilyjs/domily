@@ -10,7 +10,7 @@ class Req implements Disposable {
     this.url = url;
     this.loading = loading || ref(false);
     this.reqInit = reqInit;
-    loading.value = true;
+    this.loading.value = true;
   }
 
   async fetch() {
@@ -26,7 +26,7 @@ export default function MapList() {
   const loading = ref(false);
   const state = reactive<{
     data: {
-      map: Map<string, any>;
+      map: Map<string, string>;
       array: string[];
       set: Set<string>;
     };
@@ -56,6 +56,9 @@ export default function MapList() {
       loading,
     });
     await req.fetch();
+    if (!req.response) {
+      throw new Error("Countdown API did not return a response");
+    }
     const json = (await req.response.json()) as { data: string[] };
     style.color = "red";
     state.data.map = new Map(
@@ -130,7 +133,9 @@ export default function MapList() {
           click: () => {
             state.data.map.delete(`${state.data.array.length - 1}`);
             const popData = state.data.array.pop();
-            state.data.set.delete(popData);
+            if (popData) {
+              state.data.set.delete(popData);
+            }
           },
         },
       },
@@ -153,7 +158,7 @@ export default function MapList() {
         style: "cursor: pointer",
         on: {
           click: () => {
-            nonReactiveObjStyle.color = [
+            const colors = [
               "#ff00f3",
               "#00f3ff",
               "#f3ff00",
@@ -164,7 +169,10 @@ export default function MapList() {
               "#00ff00",
               "#ff00ff",
               "#00ffff",
-            ][Math.floor(Math.random() * 10)];
+            ] as const;
+            nonReactiveObjStyle.color =
+              colors[Math.floor(Math.random() * colors.length)] ??
+              nonReactiveObjStyle.color;
             state.key++;
           },
         },
@@ -198,7 +206,7 @@ export default function MapList() {
                     domIf: () => !loading.value,
                     mapList: {
                       list: () => state.data.map,
-                      map: ([index, item]) => {
+                      map: ([index, item]: [string, string]) => {
                         return {
                           tag: "li",
                           key: `list-${index}`,

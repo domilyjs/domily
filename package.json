@@ -3,23 +3,24 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build:rc": "lerna run build --scope=@domily/runtime-core",
-    "build:dr": "lerna run build --scope=@domily/router",
-    "build:vp": "lerna run build --scope=vite-plugin-domily",
-    "build:domily": "lerna run build --scope=domily",
+    "build:rc": "pnpm --filter @domily/runtime-core run build",
+    "build:dr": "pnpm --filter @domily/router run build",
+    "build:vp": "pnpm --filter vite-plugin-domily run build",
+    "build:domily": "pnpm --filter domily run build",
     "build": "bun lint:all && bun build:rc && bun build:dr && bun build:vp && bun build:domily",
-    "build:playground": "bun run build && lerna run build --scope=domily-playground",
-    "playground": "bun run build && lerna run dev --scope=domily-playground",
-    "release:runtime-core": "lerna run release --scope=@domily/runtime-core",
-    "release:router": "lerna run release --scope=@domily/router",
-    "release:domily": "lerna run release --scope=domily",
-    "release:vp": "lerna run release --scope=vite-plugin-domily",
-    "lint:all": "lerna run lint"
+    "typecheck:test": "tsc -p ./tsconfig.test.json",
+    "build:playground": "bun run build && pnpm --filter domily-playground run build",
+    "playground": "bun run build && pnpm --filter domily-playground run dev",
+    "release:runtime-core": "pnpm --filter @domily/runtime-core run release",
+    "release:router": "pnpm --filter @domily/router run release",
+    "release:domily": "pnpm --filter domily run release",
+    "release:vp": "pnpm --filter vite-plugin-domily run release",
+    "lint:all": "pnpm -r --if-present run lint"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "lerna": "^9.0.7",
-    "oxlint": "^1.56.0",
-    "typescript": "^5.9.3"
+    "@types/bun": "1.3.14",
+    "@types/node": "26.2.0",
+    "oxlint": "^1.78.0",
+    "typescript": "7.0.2"
   }
 }

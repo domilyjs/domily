@@ -215,11 +215,12 @@ export function KebabToCamel(str: string): string {
   return str
     .split("-")
     .filter((word) => word)
-    .map((word, index) =>
-      index === 0
+    .map((word, index) => {
+      const firstCharacter = word.charAt(0);
+      return index === 0
         ? word.toLowerCase()
-        : word[0].toUpperCase() + word.slice(1).toLowerCase()
-    )
+        : firstCharacter.toUpperCase() + word.slice(1).toLowerCase();
+    })
     .join("");
 }
 
@@ -314,6 +315,9 @@ export function teleportChildren(
   const fragment = document.createDocumentFragment();
   for (let index = 0; index < children.length; index++) {
     const dom = children[index];
+    if (dom === undefined) {
+      continue;
+    }
     if (!teleportDOM(dom)) {
       fragment.append(dom);
     }
@@ -346,7 +350,9 @@ export function internalCreateElement<P>(
             } else {
               container.setAttribute(ak, next);
             }
-            typeof onUpdated === "function" && onUpdated();
+            if (typeof onUpdated === "function") {
+              onUpdated();
+            }
           });
           if (Array.isArray(gatherEffectAborts)) {
             gatherEffectAborts.push(stopEffect);
@@ -363,25 +369,26 @@ export function internalCreateElement<P>(
               }
           >
         ).forEach(([ek, ev]) => {
-          const func =
-            typeof ev === "function"
-              ? ev.bind(container)
-              : typeof ev === "object" &&
-                ev !== null &&
-                "event" in ev &&
-                typeof ev.event === "function"
-              ? ev.event.bind(container)
-              : typeof ev === "object" &&
-                ev !== null &&
-                "handleEvent" in ev &&
-                typeof ev.handleEvent === "function"
-              ? ev.handleEvent.bind(container)
-              : () => {};
+          const event =
+            typeof ev === "object" && ev !== null && "event" in ev
+              ? ev.event
+              : ev;
+          const listener =
+            typeof event === "function"
+              ? event.bind(container)
+              : typeof event === "object" &&
+                event !== null &&
+                "handleEvent" in event &&
+                typeof event.handleEvent === "function"
+              ? event
+              : null;
           const option =
             typeof ev === "object" && ev !== null && "option" in ev
               ? ev.option
               : void 0;
-          container.addEventListener(ek, func, option);
+          if (listener) {
+            container.addEventListener(ek, listener, option);
+          }
         });
       } else if (k === "style") {
         if (typeof v === "object" && v !== null) {
@@ -400,7 +407,9 @@ export function internalCreateElement<P>(
         Reflect.set(container, k, handleWithFunType(v));
         const stopEffect = stoppableEffect(() => {
           Reflect.set(container, k, handleWithFunType(v));
-          typeof onUpdated === "function" && onUpdated();
+          if (typeof onUpdated === "function") {
+            onUpdated();
+          }
         });
         if (Array.isArray(gatherEffectAborts)) {
           gatherEffectAborts.push(stopEffect);
@@ -617,16 +626,21 @@ export function mountable(schema: DomilyRenderSchema<any, any, any>) {
   const result = {
     schema,
     unmount: () => {
+      const dom = schema.__dom;
+      if (!dom) {
+        return;
+      }
+      const lifecycle = schema.snapshotUnmountLifecycle();
+
+      schema.abortEffect();
+      schema.abortEvents();
+      schema.__dom = null;
+
       const after = () => {
-        if (!schema.__dom) {
-          return;
-        }
-        removeDOM(schema.__dom);
-        if (typeof schema.unmounted === "function") {
-          schema.unmounted();
-        }
+        removeDOM(dom);
+        lifecycle.unmounted();
       };
-      ensurePromiseOrder(schema.beforeUnmount, after, [schema.__dom]);
+      void ensurePromiseOrder(lifecycle.beforeUnmount, after, [dom]);
     },
     mount: (
       parent: HTMLElement | Document | ShadowRoot | string = document.body

@@ -32,21 +32,12 @@ function getTotalTransitionTime(element: HTMLElement) {
 
   const durationArray = durations.map(toMilliseconds);
   const delayArray = delays.map(toMilliseconds);
-
   const maxLength = Math.max(durationArray.length, delayArray.length);
-  if (durationArray.length < maxLength) {
-    durationArray.length = maxLength;
-    for (let i = durationArray.length; i < maxLength; i++) {
-      durationArray[i] = durationArray[i % durationArray.length];
-    }
-  }
-  if (delayArray.length < maxLength) {
-    delayArray.length = maxLength;
-    for (let i = delayArray.length; i < maxLength; i++) {
-      delayArray[i] = delayArray[i % delayArray.length];
-    }
-  }
-  const totalTimes = durationArray.map((dur, index) => dur + delayArray[index]);
+  const totalTimes = Array.from({ length: maxLength }, (_, index) => {
+    const duration = durationArray[index % durationArray.length] ?? 0;
+    const delay = delayArray[index % delayArray.length] ?? 0;
+    return duration + delay;
+  });
   const maxTotalTime = Math.max(...totalTimes);
   return maxTotalTime;
 }
@@ -259,7 +250,9 @@ export default function Transition(
   const originalClassName = slot.className;
 
   slot.beforeMount = (dom: HTMLElement | Node | null) => {
-    typeof originalBeforeMount === "function" && originalBeforeMount(dom);
+    if (typeof originalBeforeMount === "function") {
+      originalBeforeMount(dom);
+    }
     cls.value = classNames([
       animationClassNames.enterFrom,
       animationClassNames.enterActive,
@@ -269,17 +262,23 @@ export default function Transition(
   };
 
   slot.mounted = (dom: HTMLElement | Node | null) => {
-    typeof originalMounted === "function" && originalMounted(dom);
+    if (typeof originalMounted === "function") {
+      originalMounted(dom);
+    }
     enter(dom);
   };
 
   slot.beforeUnmount = (dom: HTMLElement | Node | null) => {
-    typeof originalBeforeUnmount === "function" && originalBeforeUnmount(dom);
+    if (typeof originalBeforeUnmount === "function") {
+      originalBeforeUnmount(dom);
+    }
     return leave(dom);
   };
 
   slot.unmounted = () => {
-    typeof originalUnmounted === "function" && originalUnmounted();
+    if (typeof originalUnmounted === "function") {
+      originalUnmounted();
+    }
   };
 
   slot.className = computed(() =>

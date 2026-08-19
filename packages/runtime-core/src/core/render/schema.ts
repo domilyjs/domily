@@ -101,6 +101,8 @@ export default class DomilyRenderSchema<
   key?: WithFuncType<string | number>;
   private mappedSchemaList: (DOMilyChild | DOMilyChildDOM)[] = [];
   private mappedDOMList: Node[] = [];
+  private mappedChildLifeCycleQueue: ILifecycleItem[] = [];
+  private mappedEffectAborts: (() => void)[] = [];
 
   /**
    * custom element
@@ -134,6 +136,11 @@ export default class DomilyRenderSchema<
   private _internalEffectAborts: (() => void)[] = [];
   private _internalDomIfRenderQueue: (() => Promise<void>)[] = [];
   private _internalDomIfRenderQueueExecuting = false;
+  private originalEvents?: DOMilyEventListenerRecord<DOMilyEventKeys>;
+  private ownBeforeUnmount?: (
+    dom: HTMLElement | Node | null
+  ) => void | Promise<unknown>;
+  private ownUnmounted?: () => void;
 
   eventsAbortController: Map<DOMilyEventKeys, AbortController> = new Map();
 
@@ -180,7 +187,8 @@ export default class DomilyRenderSchema<
     /**
      * eventListeners
      */
-    this.on = this.handleEvents(schema.on);
+    this.originalEvents = schema.on;
+    this.on = this.handleEvents(this.originalEvents);
 
     /**
      * display controller
@@ -210,16 +218,21 @@ export default class DomilyRenderSchema<
       return;
     }
     this._internalDomIfRenderQueueExecuting = true;
-    while (this._internalDomIfRenderQueue.length) {
-      const promise = this._internalDomIfRenderQueue.shift();
-      if (typeof promise === "function") {
-        await promise();
+    try {
+      while (this._internalDomIfRenderQueue.length) {
+        const promise = this._internalDomIfRenderQueue.shift();
+        if (typeof promise === "function") {
+          await promise();
+        }
       }
+    } finally {
+      this._internalDomIfRenderQueueExecuting = false;
     }
-    this._internalDomIfRenderQueueExecuting = false;
   }
 
   handleLifeCycle(schema: IDomilyRenderOptions<CustomElementMap, K>) {
+    this.ownBeforeUnmount = schema.beforeUnmount;
+    this.ownUnmounted = schema.unmounted;
     this.beforeMount = (dom) => {
       const rs: (void | Promise<unknown>)[] = [];
       if (schema.beforeMount && isFunction(schema.beforeMount)) {
@@ -256,28 +269,47 @@ export default class DomilyRenderSchema<
     };
 
     this.beforeUnmount = (dom) => {
-      const rs: (void | Promise<unknown>)[] = [];
-      if (schema.beforeUnmount && isFunction(schema.beforeUnmount)) {
-        rs.push(schema.beforeUnmount(dom));
-      }
-      this.childLifeCycleQueue.forEach((child) => {
-        if (child.beforeUnmount && isFunction(child.beforeUnmount)) {
-          rs.push(child.beforeUnmount(child.dom));
-        }
-      });
-      return Promise.allSettled(rs);
+      return this.getUnmountLifecycle([...this.childLifeCycleQueue]).beforeUnmount(
+        dom
+      );
     };
 
     this.unmounted = () => {
-      this.childLifeCycleQueue.forEach((child) => {
-        if (child.unmounted && isFunction(child.unmounted)) {
-          child.unmounted();
-        }
-      });
-      if (schema.unmounted && isFunction(schema.unmounted)) {
-        schema.unmounted();
-      }
+      this.getUnmountLifecycle([...this.childLifeCycleQueue]).unmounted();
     };
+  }
+
+  private getUnmountLifecycle(children: readonly ILifecycleItem[]) {
+    const ownBeforeUnmount = this.ownBeforeUnmount;
+    const ownUnmounted = this.ownUnmounted;
+    return {
+      beforeUnmount: (dom: HTMLElement | Node | null) => {
+        const result: (void | Promise<unknown>)[] = [];
+        if (ownBeforeUnmount && isFunction(ownBeforeUnmount)) {
+          result.push(ownBeforeUnmount(dom));
+        }
+        children.forEach((child) => {
+          if (child.beforeUnmount && isFunction(child.beforeUnmount)) {
+            result.push(child.beforeUnmount(child.dom));
+          }
+        });
+        return Promise.allSettled(result);
+      },
+      unmounted: () => {
+        children.forEach((child) => {
+          if (child.unmounted && isFunction(child.unmounted)) {
+            child.unmounted();
+          }
+        });
+        if (ownUnmounted && isFunction(ownUnmounted)) {
+          ownUnmounted();
+        }
+      },
+    };
+  }
+
+  snapshotUnmountLifecycle() {
+    return this.getUnmountLifecycle([...this.childLifeCycleQueue]);
   }
 
   runLifecycle(lifecycle: LifecycleName) {
@@ -297,9 +329,17 @@ export default class DomilyRenderSchema<
     abortController: AbortController
   ) {
     if (originalOptions?.signal) {
-      originalOptions.signal.addEventListener("abort", () => {
+      if (originalOptions.signal.aborted) {
         abortController.abort();
-      });
+      } else {
+        originalOptions.signal.addEventListener(
+          "abort",
+          () => {
+            abortController.abort();
+          },
+          { once: true }
+        );
+      }
     }
     return {
       ...originalOptions,
@@ -364,6 +404,18 @@ export default class DomilyRenderSchema<
     ) as DOMilyEventListenerRecord<DOMilyEventKeys>;
   }
 
+  abortEvents() {
+    for (const abortController of this.eventsAbortController.values()) {
+      abortController.abort();
+    }
+    this.eventsAbortController.clear();
+  }
+
+  refreshEvents() {
+    this.abortEvents();
+    this.on = this.handleEvents(this.originalEvents);
+  }
+
   handleDIf(dIf?: boolean | (() => boolean)) {
     return () => {
       if (typeof dIf === "undefined") {
@@ -402,7 +454,7 @@ export default class DomilyRenderSchema<
 
     let previousCSS: HTMLStyleElement | null = null;
 
-    if (customElementCSS) {
+    if (customElementCSS !== undefined) {
       previousCSS = handleCSS(handleWithFunType(customElementCSS));
       handleFunTypeEffect(
         customElementCSS,
@@ -415,10 +467,23 @@ export default class DomilyRenderSchema<
           ) {
             return;
           }
-          previousCSS = replaceDOM(
-            previousCSS,
-            nextStyle
-          ) as HTMLStyleElement | null;
+          if (previousCSS && nextStyle) {
+            previousCSS = replaceDOM(
+              previousCSS,
+              nextStyle
+            ) as HTMLStyleElement;
+          } else if (previousCSS) {
+            removeDOM(previousCSS);
+            previousCSS = null;
+          } else if (nextStyle) {
+            previousCSS = nextStyle;
+            const component = this.__dom as HTMLElement | null;
+            const container =
+              component && "shadowRoot" in component && component.shadowRoot
+                ? component.shadowRoot
+                : component;
+            container?.prepend(nextStyle);
+          }
           this.runLifecycle("updated");
         },
         this._internalEffectAborts
@@ -461,7 +526,7 @@ export default class DomilyRenderSchema<
 
   domWithKey(dom: HTMLElement | Node) {
     let previousKey = handleWithFunType(this.key);
-    if (!previousKey) {
+    if (previousKey === undefined || previousKey === null) {
       return dom;
     }
 
@@ -500,6 +565,61 @@ export default class DomilyRenderSchema<
     return nextDOM;
   }
 
+  private abortMappedEffects() {
+    for (const abort of this.mappedEffectAborts) {
+      if (isFunction(abort)) {
+        abort();
+      }
+    }
+    this.mappedEffectAborts = [];
+  }
+
+  private disposeMappedChildren() {
+    const mappedLifeCycles = this.mappedChildLifeCycleQueue;
+    const mappedLifeCycleSet = new Set(mappedLifeCycles);
+
+    this.abortMappedEffects();
+    this.childLifeCycleQueue = this.childLifeCycleQueue.filter(
+      (child) => !mappedLifeCycleSet.has(child)
+    );
+    this.mappedChildLifeCycleQueue = [];
+
+    for (const child of mappedLifeCycles) {
+      void ensurePromiseOrder(
+        child.beforeUnmount,
+        () => child.unmounted?.(),
+        [child.dom]
+      );
+    }
+  }
+
+  private renderMappedDOMList() {
+    this.mappedDOMList = [];
+    for (const child of this.mappedSchemaList) {
+      const lifeCycles: ILifecycleItem[] = [];
+      const childDOM = domilyChildToDOM(
+        child,
+        lifeCycles,
+        this.mappedEffectAborts
+      );
+      this.mappedChildLifeCycleQueue.push(...lifeCycles);
+      this.childLifeCycleQueue.push(...lifeCycles);
+      if (childDOM) {
+        this.mappedDOMList.push(childDOM);
+      }
+    }
+  }
+
+  private mountMappedChildren() {
+    for (const child of this.mappedChildLifeCycleQueue) {
+      void ensurePromiseOrder(
+        child.beforeMount,
+        () => child.mounted?.(child.dom),
+        [child.dom]
+      );
+    }
+  }
+
   updateDOMList(
     map?: (data: ListData, index: number) => DOMilyChild | DOMilyChildDOM,
     list?: Iterable<ListData> | null
@@ -507,6 +627,7 @@ export default class DomilyRenderSchema<
     if (!this.__dom || !handleWithFunType(this.domIf)) {
       return;
     }
+    this.disposeMappedChildren();
     this.mappedDOMList.forEach((keyNode) => {
       removeDOM(keyNode);
     });
@@ -518,18 +639,16 @@ export default class DomilyRenderSchema<
       for (const item of list) {
         const child = map.apply(list, [item, i++]);
         this.mappedSchemaList.push(child);
-        const childDOM = domilyChildToDOM(
-          child,
-          this.childLifeCycleQueue,
-          this._internalEffectAborts
-        );
-        if (childDOM) {
-          this.mappedDOMList.push(childDOM);
-          nextMappedListFragment.appendChild(childDOM);
-        }
       }
     }
+    this.renderMappedDOMList();
+    this.mappedDOMList.forEach((childDOM) => {
+      nextMappedListFragment.appendChild(childDOM);
+    });
     this.__dom?.appendChild(nextMappedListFragment);
+    if (this.__dom?.isConnected) {
+      this.mountMappedChildren();
+    }
     this.runLifecycle("updated");
   }
 
@@ -539,20 +658,30 @@ export default class DomilyRenderSchema<
         gatherArray.push(abort);
       }
     }
+    for (const abort of this.mappedEffectAborts) {
+      if (isFunction(abort)) {
+        gatherArray.push(abort);
+      }
+    }
   }
 
   abortEffect() {
     for (const abort of this._internalEffectAborts) {
-      isFunction(abort) && abort();
+      if (isFunction(abort)) {
+        abort();
+      }
     }
     this._internalEffectAborts = [];
+    this.abortMappedEffects();
   }
 
   initialRenderStatus() {
+    this.abortEffect();
     this.childLifeCycleQueue = [];
     this.mappedSchemaList = [];
     this.mappedDOMList = [];
-    this.abortEffect();
+    this.mappedChildLifeCycleQueue = [];
+    this.refreshEvents();
   }
 
   render(): HTMLElement | Node | null {
@@ -618,6 +747,12 @@ export default class DomilyRenderSchema<
             return;
           }
           if (!this.__dom?.isConnected) {
+            if (nextDomIf) {
+              rebuildDOM();
+            } else {
+              hideDOM();
+            }
+            previousDomIf = nextDomIf;
             return;
           }
           if (!nextDomIf) {
@@ -727,10 +862,20 @@ export default class DomilyRenderSchema<
         ) {
           return;
         }
-        previousCSS = replaceDOM(
-          previousCSS,
-          nextStyle
-        ) as HTMLStyleElement | null;
+        if (previousCSS && nextStyle) {
+          previousCSS = replaceDOM(
+            previousCSS,
+            nextStyle
+          ) as HTMLStyleElement;
+        } else if (previousCSS) {
+          removeDOM(previousCSS);
+          previousCSS = null;
+        } else if (nextStyle) {
+          previousCSS = nextStyle;
+          if (this.__dom) {
+            (this.__dom as HTMLElement).prepend(nextStyle);
+          }
+        }
         this.runLifecycle("updated");
       },
       this._internalEffectAborts
@@ -767,15 +912,7 @@ export default class DomilyRenderSchema<
       )
       .filter((e) => !!e) || []) as (HTMLElement | Node)[];
 
-    this.mappedDOMList = (this.mappedSchemaList
-      ?.map((child) =>
-        domilyChildToDOM(
-          child,
-          this.childLifeCycleQueue,
-          this._internalEffectAborts
-        )
-      )
-      .filter((e) => !!e) || []) as (HTMLElement | Node)[];
+    this.renderMappedDOMList();
 
     if (this.mappedDOMList.length) {
       children = children.concat(this.mappedDOMList);
@@ -794,20 +931,29 @@ export default class DomilyRenderSchema<
             if (!hasDiff(previousProps, nextProps)) {
               return;
             }
-            if (!this.__dom || !nextProps) {
-              return;
+            if (this.__dom) {
+              const previous = (previousProps ?? {}) as Record<
+                string,
+                unknown
+              >;
+              const next = (nextProps ?? {}) as Record<string, unknown>;
+              Object.keys(previous).forEach((k) => {
+                if (!(k in next)) {
+                  Reflect.set(this.__dom as HTMLElement, k, undefined);
+                }
+              });
+              Object.keys(next).forEach((k) => {
+                Reflect.set(this.__dom as HTMLElement, k, next[k]);
+              });
+              this.runLifecycle("updated");
             }
-            Object.keys(nextProps).forEach((k) => {
-              Reflect.set(this.__dom as HTMLElement, k, nextProps[k]);
-            });
-            this.runLifecycle("updated");
             previousProps = nextProps;
           },
           this._internalEffectAborts
         );
         return previousProps;
       })(),
-      ...(this.id
+      ...(this.id !== undefined
         ? {
             id: (() => {
               let previousId = handleWithFunType(this.id);
@@ -829,7 +975,7 @@ export default class DomilyRenderSchema<
             })(),
           }
         : {}),
-      ...(this.className
+      ...(this.className !== undefined
         ? {
             className: (() => {
               let previousClassName = handleWithFunType(this.className);
@@ -855,7 +1001,7 @@ export default class DomilyRenderSchema<
             })(),
           }
         : {}),
-      ...(this.html
+      ...(this.html !== undefined
         ? {
             innerHTML: (() => {
               let previousHTML = handleWithFunType(this.html);
@@ -876,7 +1022,7 @@ export default class DomilyRenderSchema<
               return previousHTML;
             })(),
           }
-        : this.text
+        : this.text !== undefined
         ? {
             innerText: (() => {
               let previousText = handleWithFunType(this.text);
@@ -906,13 +1052,27 @@ export default class DomilyRenderSchema<
             if (!hasDiff(previousAttrs, nextAttrs)) {
               return;
             }
-            if (!this.__dom || !nextAttrs) {
-              return;
+            if (this.__dom) {
+              const previous = (previousAttrs ?? {}) as Record<
+                string,
+                string
+              >;
+              const next = (nextAttrs ?? {}) as Record<string, string>;
+              Object.keys(previous).forEach((k) => {
+                if (!(k in next)) {
+                  (this.__dom as HTMLElement).removeAttribute(k);
+                }
+              });
+              Object.keys(next).forEach((k) => {
+                const value = next[k];
+                if (typeof value === "undefined") {
+                  (this.__dom as HTMLElement).removeAttribute(k);
+                } else {
+                  (this.__dom as HTMLElement).setAttribute(k, value);
+                }
+              });
+              this.runLifecycle("updated");
             }
-            Object.keys(nextAttrs).forEach((k) => {
-              (this.__dom as HTMLElement).setAttribute(k, nextAttrs[k]);
-            });
-            this.runLifecycle("updated");
             previousAttrs = nextAttrs;
           },
           this._internalEffectAborts

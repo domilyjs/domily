@@ -15,15 +15,21 @@
       "ES2023",
       "ESNext"
     ],
-    "module": "ESNext",
+    "module": "preserve",
     "moduleResolution": "bundler",
     "declaration": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "declarationDir": "./lib/types",
     "emitDeclarationOnly": true,
     "rootDir": "./src",
   },
+  "include": [
+    "./src/**/*.ts"
+  ],
   "exclude": [
+    "lib",
     "scripts",
     "rolldown.config.ts",
     "test"

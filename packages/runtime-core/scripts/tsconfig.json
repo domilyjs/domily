@@ -12,24 +12,12 @@
     "types": [
       "node",
       "bun",
-      "vite",
-      "./types/domily.d.ts"
     ],
     "lib": [
       "ESNext",
       "DOM",
     ],
     "verbatimModuleSyntax": true,
-    "declaration": true,
-    "declarationDir": "./lib/types",
-    "emitDeclarationOnly": true,
+    "rootDir": "."
   },
-  "include": [
-    "**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "scripts",
-    "lib"
-  ]
 }

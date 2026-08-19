@@ -1,127 +1,163 @@
-import {
-  type JscConfig,
-  type ModuleItem,
-  parseSync,
-  printSync,
-  transform,
-} from "@swc/core";
-import type { VitePluginDomilyOptions } from "./utils";
-import { codeDataBinding } from "./data-bing";
+import { codeDataBinding, templateUsesProps } from './data-binding';
+import type { VitePluginDomilyOptions } from './utils';
 
-type Mode = "dev" | "build" | "unknown" | "scan";
+export type Mode = 'dev' | 'build' | 'unknown' | 'scan';
+
+interface SourceSpan {
+  start: number;
+  end: number;
+}
+
+interface ParsedProgram {
+  body: Array<SourceSpan & { type: string }>;
+}
+
+export interface OxcCompiler {
+  parse(
+    code: string,
+    options: { lang: 'js' | 'ts' | 'jsx' | 'tsx'; sourceType: 'module' },
+  ): { program: ParsedProgram };
+  transform(
+    code: string,
+    filename: string,
+    options: {
+      decorator: { legacy: true };
+      lang: 'js' | 'ts' | 'jsx' | 'tsx';
+      sourcemap: boolean;
+      target: string;
+    },
+  ): Promise<{ code: string; map?: { mappings: string } }>;
+}
 
 interface ParseResult {
   script: string;
   json: string;
   style: string;
   ts: boolean;
+  usesProps: boolean;
   cssPreprocessor: string;
 }
 
-function filterCode(
-  code: string,
-  filter: (node: ModuleItem) => boolean,
-  options: {
-    ts?: boolean;
-    mode?: Mode;
-  },
-) {
-  const ast = parseSync(code, {
-    syntax: options.ts ? "typescript" : "ecmascript",
+function splitModuleSource(code: string, compiler: OxcCompiler, ts: boolean) {
+  const { program } = compiler.parse(code, {
+    lang: ts ? 'tsx' : 'js',
+    sourceType: 'module',
   });
-  const filteredAst = {
-    ...ast,
-    body: ast.body.filter(filter),
+  const imports: string[] = [];
+  const statements: string[] = [];
+
+  for (const statement of program.body) {
+    const source = code.slice(statement.start, statement.end);
+    if (statement.type === 'ImportDeclaration') {
+      imports.push(source);
+    } else {
+      statements.push(source);
+    }
+  }
+
+  return {
+    imports: imports.join('\n'),
+    statements: statements.join('\n'),
   };
-  return printSync(filteredAst, { minify: options.mode !== "dev" }).code;
 }
 
-function JSC(ts: boolean) {
-  const jsc: JscConfig = {
-    parser: {
-      syntax: ts ? "typescript" : "ecmascript",
-      tsx: true,
-      decorators: true,
-    },
-    target: "es2022",
-    minify: {
-      format: {
-        indentLevel: 2,
-      },
-    },
-  };
-  return jsc;
-}
+type Section = "json" | "script" | "style";
 
 function parse(code: string) {
-  const codeBlockRegex = /```(\w*)\n([\s\S]*?)\n```/g;
+  const codeBlockRegex = /```([^\r\n`]*)\r?\n([\s\S]*?)\r?\n```/g;
 
   const result: ParseResult = {
-    script: "",
-    json: "",
-    style: "",
+    script: '',
+    json: '',
+    style: '',
     ts: false,
-    cssPreprocessor: "css",
+    usesProps: false,
+    cssPreprocessor: 'css',
+  };
+
+  const sections = new Set<Section>();
+  const setSection = (section: Section, content: string, lang: string) => {
+    if (sections.has(section)) {
+      throw new SyntaxError(
+        `Duplicate Domily ${section} section (${lang || "unlabelled"}).`,
+      );
+    }
+
+    sections.add(section);
+    if (section === "json") {
+      result.json = content;
+      return;
+    }
+    if (section === "script") {
+      result.script = content;
+      return;
+    }
+    result.style = content;
   };
 
   let match: RegExpExecArray | null = null;
 
   while ((match = codeBlockRegex.exec(code)) !== null) {
-    // eslint-disable-next-line no-unused-vars
-    const [_, lang, content] = match;
-    const langLowerCase = lang.toLowerCase();
+    const [, lang = '', content = ''] = match;
+    const langLowerCase = lang.trim().toLowerCase();
     switch (langLowerCase) {
-      case "json":
-        result.json = content;
+      case 'json':
+        setSection('json', content, lang);
         break;
-      case "ts":
-      case "typescript":
+      case 'ts':
+      case 'typescript':
         result.ts = true;
-        result.script = content;
+        setSection('script', content, lang);
         break;
-      case "js":
-      case "javascript":
-        result.script = content;
+      case 'js':
+      case 'javascript':
+        setSection('script', content, lang);
         break;
-      case "less":
-      case "css":
-      case "scss":
-      case "sass":
+      case 'less':
+      case 'css':
+      case 'scss':
+      case 'sass':
         result.cssPreprocessor = langLowerCase;
-        result.style = content;
+        setSection('style', content, lang);
         break;
       default:
-        if (content.trim().startsWith("{")) {
-          result.json = content;
+        if (content.trim().startsWith('{')) {
+          setSection('json', content, lang);
         } else if (/(const|let|function)\s/.test(content)) {
-          result.script = content;
+          setSection('script', content, lang);
         } else if (/(\.|#)[\w-]+\s*{/.test(content)) {
-          result.style = content;
+          setSection('style', content, lang);
         }
     }
   }
+
+  if (!sections.has('json')) {
+    throw new SyntaxError('A Domily component must contain one JSON template section.');
+  }
+
   return result;
 }
 
 function handleScript(code: ParseResult) {
+  code.usesProps = templateUsesProps(code.json);
   code.json = codeDataBinding(code.json);
   return code;
 }
 
 async function handleStyle(code: ParseResult, mode: Mode) {
-  if (code.cssPreprocessor === "css") {
+  if (code.cssPreprocessor === 'css') {
     return code;
   }
-  if (code.cssPreprocessor === "less") {
-    const less = await import("less").then((e) => e.default);
-    const { css } = await less.render(code.style, { compress: mode !== "dev" });
+  if (code.cssPreprocessor === 'less') {
+    const less = await import('less').then((entry) => entry.default);
+    const { css } = await less.render(code.style, { compress: mode !== 'dev' });
     code.style = css;
   }
-  if (["scss", "sass"].includes(code.cssPreprocessor)) {
-    const sass = await import("sass").then((e) => e);
+  if (['scss', 'sass'].includes(code.cssPreprocessor)) {
+    const sass = await import('sass').then((entry) => entry);
     const { css } = sass.compileString(code.style, {
-      syntax: code.cssPreprocessor === "scss" ? "scss" : "indented",
-      style: mode === "dev" ? "expanded" : "compressed",
+      syntax: code.cssPreprocessor === 'scss' ? 'scss' : 'indented',
+      style: mode === 'dev' ? 'expanded' : 'compressed',
     });
     code.style = css;
   }
@@ -138,7 +174,7 @@ function handleTemplateStyle(json: string, style: string) {
             children: [
               {
                 tag: 'text',
-                text: \`${style}\`
+                text: ${JSON.stringify(style)}
               }
             ]
           },
@@ -149,40 +185,53 @@ function handleTemplateStyle(json: string, style: string) {
   return template;
 }
 
-async function generateCodeText({
+function generateCodeText({
   name,
   script,
   template,
   options,
   ts,
-  mode,
+  usesProps,
+  compiler,
 }: {
   name: string;
   script: string;
   template: string;
   options: VitePluginDomilyOptions;
   ts: boolean;
-  mode: Mode;
+  usesProps: boolean;
+  compiler: OxcCompiler;
 }) {
-  const {
-    customElement: { enable, prefix },
-  } = options;
-
+  const { enable = false, prefix = 'd-' } = options.customElement ?? {};
   const returnTemplate = enable
-    ? `{ name: "${prefix}${name}", customElementComponent: ${template}}`
+    ? `{ name: ${JSON.stringify(normalizeCustomElementName(prefix, name))}, customElementComponent: ${template}}`
     : template;
-  const imports = filterCode(script, (n) => n.type === "ImportDeclaration", {
-    ts,
-    mode,
-  });
-  const others = filterCode(script, (n) => n.type !== "ImportDeclaration", {
-    ts,
-    mode,
-  });
-  const withProps = [others, returnTemplate].some((e) => e.includes("props"))
-    ? "props"
-    : "";
-  return `${imports}export default function(${withProps}){\n${others}return ${returnTemplate}\n}`;
+  const { imports, statements } = splitModuleSource(script, compiler, ts);
+  const scriptMentionsProps = /\bprops\b/.test(statements);
+  const scriptDefinesProps = /\b(?:const|let|var|function|class)\s+props\b/.test(
+    statements,
+  );
+  const scriptImportsProps = /\bimport[\s\S]*?\bprops\b[\s\S]*?\bfrom\b/.test(
+    imports,
+  );
+  const withProps =
+    usesProps || (scriptMentionsProps && !scriptDefinesProps && !scriptImportsProps)
+      ? 'props'
+      : '';
+  return `${imports}\nexport default function(${withProps}){\n${statements}\nreturn ${returnTemplate}\n}`;
+}
+
+function normalizeCustomElementName(prefix: string, name: string) {
+  const normalized = `${prefix}${name}`
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9._-]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '');
+
+  if (!normalized) {
+    return 'd-component';
+  }
+
+  return normalized.includes('-') ? normalized : `d-${normalized}`;
 }
 
 export async function transformDOMSingleFileComponentCode(
@@ -190,26 +239,24 @@ export async function transformDOMSingleFileComponentCode(
   code: string,
   mode: Mode,
   options: VitePluginDomilyOptions,
+  compiler: OxcCompiler,
+  filename: string,
 ) {
-  const { script, style, json, ts } = await handleStyle(
-    handleScript(parse(code)),
-    mode,
-  );
-  const template = handleTemplateStyle(json, style);
-
-  const codeText = await generateCodeText({
+  const { script, style, json, ts, usesProps } = await handleStyle(handleScript(parse(code)), mode);
+  const codeText = generateCodeText({
     name,
     script,
-    template,
+    template: handleTemplateStyle(json, style),
     options,
     ts,
-    mode,
+    usesProps,
+    compiler,
   });
-
-  const result = await transform(codeText, {
-    jsc: JSC(ts),
-    minify: mode !== "dev",
-    sourceMaps: mode === "dev",
+  const result = await compiler.transform(codeText, filename, {
+    decorator: { legacy: true },
+    lang: ts ? 'tsx' : 'js',
+    sourcemap: mode === 'dev',
+    target: 'es2022',
   });
 
   return { code: result.code, map: result.map };

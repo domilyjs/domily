@@ -1,11 +1,11 @@
 import {
-  CustomParamsToMap,
-  OptionalWith,
   registerElement,
   render,
   type DOMilyMountableRender,
   type DOMilyTags,
   type IDomilyRenderOptions,
+  type CustomParamsToMap,
+  type OptionalWith,
 } from "./core/render";
 import { createApp } from "./core/app";
 import { HTMLNodeNameMap, SVGElementNameMap } from "./utils/tags";

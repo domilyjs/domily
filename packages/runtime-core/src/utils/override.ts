@@ -31,7 +31,9 @@ export function useOverrideBefore<
       if (typeof original !== "function") {
         return original;
       }
-      typeof action === "function" && action.apply(this, args);
+      if (typeof action === "function") {
+        action.apply(this, args);
+      }
       return original.apply(this, args);
     },
   });
@@ -51,7 +53,9 @@ export function useOverrideAfter<
         return original;
       }
       const rs = original.apply(this, args);
-      typeof action === "function" && action.apply(this, [...args, rs]);
+      if (typeof action === "function") {
+        action.apply(this, [...args, rs]);
+      }
       return rs;
     },
   });

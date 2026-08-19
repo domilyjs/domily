@@ -97,7 +97,7 @@ export default function Layout({ namespace }: WithBaseProps) {
 </script>`;
 
   const route = useRoute(namespace);
-  const codeFromQuery = route.hash;
+  const codeFromQuery = route?.hash;
 
   if (codeFromQuery) {
     initialCode = decodeURIComponent(decode(codeFromQuery));
@@ -117,8 +117,14 @@ export default function Layout({ namespace }: WithBaseProps) {
   let win: Window | null = null;
   const openInNewWindow = () => {
     url = getPreviewURL();
-    win = window.open(url);
-    win.onclose = () => {
+    const openedWindow = window.open(url);
+    if (!openedWindow) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    win = openedWindow;
+    openedWindow.onclose = () => {
       URL.revokeObjectURL(url);
       win = null;
     };

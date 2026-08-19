@@ -1,6 +1,6 @@
 import { transformDOMSingleFileComponentCode } from "./compiler";
 import { merge, type VitePluginDomilyOptions } from "./compiler/utils";
-import type { Plugin } from "vite";
+import { transformWithOxc, type Plugin } from "vite";
 
 export { type VitePluginDomilyOptions };
 
@@ -17,17 +17,32 @@ export default function domily(options?: VitePluginDomilyOptions) {
   const opt = merge<VitePluginDomilyOptions>(defaultOptions, options);
   const plugin: Plugin = {
     name: "vite:domily",
-    transform(code, id) {
-      if (sfcExt.some((e) => id.endsWith(e))) {
-        let name = id.split("/").at(-1);
-        sfcExt.forEach((e) => {
-          name = name.replace(e, "");
-        });
+    async transform(code, id) {
+      const resourceId = id.replace(/[?#].*$/, "");
+      if (sfcExt.some((e) => resourceId.endsWith(e))) {
+        const filename = resourceId.split("/").at(-1);
+        if (!filename) return;
+
+        const name = sfcExt.reduce(
+          (value, extension) => value.replace(extension, ""),
+          filename,
+        );
         return transformDOMSingleFileComponentCode(
           name,
           code,
           this.environment.mode,
-          opt
+          opt,
+          {
+            parse: (source, parserOptions) => ({ program: this.parse(source, parserOptions) }),
+            transform: async (source, filename, transformOptions) => {
+              const transformed = await transformWithOxc(source, filename, transformOptions);
+              return {
+                code: transformed.code,
+                ...(transformed.map ? { map: transformed.map } : {}),
+              };
+            },
+          },
+          resourceId,
         );
       }
     },

@@ -1,7 +1,7 @@
 import path from "path";
 import pkg from "../package.json";
 
-const endpoints = ["index.cjs.js", "index.esm.js", "index.umd.js"].map((e) =>
+const endpoints = ["index.cjs", "index.esm.js", "index.umd.js"].map((e) =>
   path.resolve(import.meta.dir, "../lib", e)
 );
 

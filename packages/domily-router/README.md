@@ -57,6 +57,7 @@ const router = createHistoryRouter({
 
 router.beforeEach((from, to, next) => {
   // the router guards here
+  // Call next() after any asynchronous work; navigation waits for it.
   next();
 });
 
@@ -107,6 +108,7 @@ interface DOMilyRouterHelper {
   back: DomilyRouterBase["back"];
   forward: DomilyRouterBase["forward"];
   go: DomilyRouterBase["go"];
+  destroy: DomilyRouterBase["destroy"];
   routes: DomilyRouterBase["routes"];
   currentRoute: DomilyRouterBase["currentRoute"];
 }

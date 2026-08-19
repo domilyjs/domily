@@ -2,10 +2,12 @@
   "compilerOptions": {
     // Environment setup & latest features
     "lib": [
+      "DOM",
+      "DOM.Iterable",
       "ESNext"
     ],
     "target": "ESNext",
-    "module": "ESNext",
+    "module": "preserve",
     "moduleDetection": "force",
     "jsx": "react-jsx",
     "allowJs": true,
@@ -26,5 +28,11 @@
     "types": [
       "bun"
     ]
-  }
+  },
+  "exclude": [
+    "**/lib/**",
+    "**/dist/**",
+    "node_modules",
+    "packages/domily-playground"
+  ]
 }

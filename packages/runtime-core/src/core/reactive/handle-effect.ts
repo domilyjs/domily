@@ -1,7 +1,7 @@
 import { effect, effectScope } from "alien-signals";
 import { isFunction } from "../../utils/is";
 import { deepClone } from "../../utils/obj";
-import { WithFuncType } from "./type";
+import type { WithFuncType } from "./type";
 
 export function handleWithFunType<T>(option: WithFuncType<T>) {
   const value = isFunction(option) ? option() : option;
@@ -42,10 +42,15 @@ export function watchEffect<T>(
   update: (next: T, previous: T) => T = (next, _previous) => next
 ) {
   const result = { value: void 0 as T };
-  result.value = handleWithFunType(option);
+  let initialized = false;
   handleFunTypeEffect(
     option,
     (newValue) => {
+      if (!initialized) {
+        result.value = newValue;
+        initialized = true;
+        return;
+      }
       if (isEqual(newValue, result.value)) {
         return;
       }
